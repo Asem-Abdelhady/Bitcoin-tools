@@ -17,7 +17,7 @@ pub struct Tx {
 pub struct Input {
     tx_id: [u8; 32],
     v_out: u32,
-    script_sig_size: Option<usize>,
+    script_sig_size: usize,
     script_sig: Option<Vec<u8>>,
     sequence: u32,
 }
@@ -31,6 +31,12 @@ pub struct Output {
 
 #[derive(Debug, Serialize)]
 pub struct Witness {
-    witness_count: usize,
-    witness_data: Vec<Vec<u8>>,
+    stack_items_size: usize,
+    stack_items: Option<Vec<WitnessStackItem>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WitnessStackItem {
+    item_size: usize,
+    item: Vec<u8>,
 }
