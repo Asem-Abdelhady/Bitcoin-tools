@@ -1,14 +1,27 @@
-[package]
-name = "bitcoin-tools-web-server"
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/server", "crates/vectors"]
+
+# Shared across both crates so a version bump happens in one place.
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+# Edition 2024 needs 1.85; `u64::is_multiple_of` in `hex` needs 1.87, and that
+# is the real floor. Stated so an older toolchain says so, instead of failing
+# somewhere confusing — clippy checks the code against this number.
+rust-version = "1.87"
+authors = ["Asem Abdelhady <asemshawkey@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Asem-Abdelhady/bitcoin-tools-web-server"
 
-[dependencies]
+[workspace.dependencies]
+bitcoin-tools-core = { path = "crates/core", version = "0.1.0" }
+bitcoin-tools-vectors = { path = "crates/vectors" }
+
 axum = "0.8.9"
 serde = { version = "1.0.229", features = ["derive"] }
+ripemd = "0.2.0"
+serde_json = "1.0.151"
+sha2 = "0.11.0"
 tokio = { version = "1.53.1", features = ["full"] }
 tower = "0.5.3"
-
-[dev-dependencies]
-serde_json = "1.0.151"
-tower = { version = "0.5.3", features = ["util"] }
