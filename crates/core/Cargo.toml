@@ -1,0 +1,43 @@
+[package]
+name = "bitcoin-tools-core"
+description = "Decode and inspect Bitcoin data: transactions, scripts, keys, addresses, HD wallets, and blocks."
+keywords = ["bitcoin", "transaction", "script", "bip32", "decode"]
+categories = ["cryptography::cryptocurrencies", "parser-implementations"]
+readme = "README.md"
+# `tests/` depends on `bitcoin-tools-vectors`, a path-only dev-dependency that
+# Cargo strips from the published manifest. Shipping the tests without the
+# crate they import gives anyone who vendors this a suite that will not
+# compile, and neither `cargo package` nor its verify step notices — they
+# build lib and examples, never tests. The tests still run in this workspace.
+exclude = ["tests/**"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+# Keep the serde-gated impls visible on docs.rs even if `serde` ever leaves
+# the default feature set.
+all-features = true
+
+[features]
+default = ["serde"]
+# Derives on the value types a caller renders. On by default because the web
+# server needs it; a CLI turns it off. Anything gated here must also compile
+# with `--no-default-features`.
+serde = ["dep:serde"]
+
+[dependencies]
+ripemd.workspace = true
+sha2.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+bitcoin-tools-vectors.workspace = true
+serde_json.workspace = true
+
+# Lints live in `src/lib.rs`, not here. Cargo's `[lints]` applies to every
+# target in the package, and "never unwrap" is a rule for the library, not for
+# its tests. Crate-level attributes in lib.rs scope to the lib alone.

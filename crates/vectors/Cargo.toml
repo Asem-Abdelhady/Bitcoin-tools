@@ -1,0 +1,10 @@
+[package]
+name = "bitcoin-tools-vectors"
+description = "Known-good Bitcoin test vectors, shared by the other crates' test suites. Not published."
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true

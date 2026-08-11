@@ -1,0 +1,21 @@
+[package]
+name = "bitcoin-tools-web-server"
+description = "An axum JSON API over bitcoin-tools-core."
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bitcoin-tools-core.workspace = true
+
+axum.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tower.workspace = true
+
+[dev-dependencies]
+bitcoin-tools-vectors.workspace = true
+serde_json.workspace = true
+tower = { workspace = true, features = ["util"] }
