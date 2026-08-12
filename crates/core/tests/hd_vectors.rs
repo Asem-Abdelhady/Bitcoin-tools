@@ -19,13 +19,7 @@ use bitcoin_tools_core::hex;
 use bitcoin_tools_core::keys::{Address, PrivateKey, PublicKey};
 use bitcoin_tools_core::network::Network;
 use bitcoin_tools_vectors as vectors;
-
-/// A field that every vector in a set carries.
-fn field<'a>(value: &'a serde_json::Value, name: &str, at: &str) -> &'a str {
-    value[name]
-        .as_str()
-        .unwrap_or_else(|| panic!("{at} has no {name}"))
-}
+use bitcoin_tools_vectors::field;
 
 /// BIP39 in both directions: entropy renders as the published sentence, and
 /// the sentence reads back as the entropy. The seed is the one value that

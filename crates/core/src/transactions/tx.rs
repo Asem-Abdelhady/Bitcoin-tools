@@ -17,83 +17,18 @@ use std::num::NonZeroUsize;
 use super::script::Script;
 use crate::bytes::{ReadError, Reader, write_varint};
 use crate::general::Amount;
-use crate::hashes::{Hash, HashParseError, hash256};
+use crate::hashes::hash::reversed_hash;
+use crate::hashes::hash256;
 use crate::hex::{self, HexError};
 
-/// A transaction id.
-///
-/// Thirty-two bytes in *internal* (wire) order, with a [`fmt::Display`] that
-/// reverses — the order block explorers and RPC print. That one `Display` impl
-/// is the entire statement of this type's byte-order convention; everything
-/// else comes from [`struct@Hash`], which stores wire order and never guesses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Txid(Hash<32>);
-
-impl Txid {
-    /// Wrap bytes as they appear inside a serialized transaction.
-    #[must_use]
-    pub const fn from_wire(bytes: [u8; 32]) -> Self {
-        Txid(Hash::from_bytes(bytes))
-    }
-
-    /// The bytes as they appear inside a serialized transaction.
-    #[must_use]
-    pub const fn to_wire(self) -> [u8; 32] {
-        self.0.to_bytes()
-    }
-
-    /// The underlying digest, for anything that is about thirty-two bytes
-    /// rather than about a transaction — a merkle tree, say.
+reversed_hash! {
+    /// A transaction id.
     ///
-    /// **The value returned prints in wire order.** [`struct@Hash`]'s
-    /// `Display` is the forward one and the reversal lives on `Txid` alone, so
-    /// `txid.to_string()` and `txid.to_hash().to_string()` are the same bytes
-    /// rendered opposite ways. Reach for
-    /// [`Hash::to_hex_reversed`](crate::hashes::Hash::to_hex_reversed) if you
-    /// want the explorer form from a bare hash.
-    #[must_use]
-    pub const fn to_hash(self) -> Hash<32> {
-        self.0
-    }
-
-    /// Take a digest as a transaction id, in wire order.
-    ///
-    /// The inverse of [`Txid::to_hash`], so a caller who went down to the
-    /// digest can come back without routing through raw bytes.
-    #[must_use]
-    pub const fn from_hash(hash: Hash<32>) -> Self {
-        Txid(hash)
-    }
-}
-
-impl fmt::Display for Txid {
-    /// Reversed — the order block explorers and RPC use.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad(&self.0.to_hex_reversed())
-    }
-}
-
-impl std::str::FromStr for Txid {
-    type Err = HashParseError;
-
-    /// Parses the **displayed** form, undoing the reversal that
-    /// [`fmt::Display`] applies, so `txid.to_string().parse()` is the
-    /// identity.
-    ///
-    /// This closes a trap: hex-decoding an explorer txid straight into
-    /// [`Txid::from_wire`] yields a byte-reversed value that nothing
-    /// downstream can detect. Byte order is a decision this type makes, not
-    /// one it leaves to the caller.
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Hash::from_hex_reversed(s).map(Txid)
-    }
-}
-
-#[cfg(feature = "serde")]
-impl serde::Serialize for Txid {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
+    /// Thirty-two bytes in *internal* (wire) order, displayed reversed — the
+    /// order block explorers and RPC print. Everything else comes from
+    /// [`Hash`](crate::hashes::Hash), which stores wire order and never
+    /// guesses.
+    Txid, subject: "transaction", in: "transaction"
 }
 
 /// The output being spent.
@@ -615,6 +550,7 @@ impl Tx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hashes::HashParseError;
 
     // A real mainnet P2WPKH spend (txid c434944f…, height 712000).
     const SEGWIT: &str = concat!(
