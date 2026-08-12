@@ -24,7 +24,9 @@
 use std::fmt;
 use std::sync::OnceLock;
 
-use secp256k1::{PublicKey as BackendPublic, Secp256k1, SecretKey as BackendSecret, SignOnly};
+use secp256k1::{
+    PublicKey as BackendPublic, Scalar, Secp256k1, SecretKey as BackendSecret, SignOnly, VerifyOnly,
+};
 
 /// Bytes in a secret scalar, and in each coordinate of a point.
 pub const SCALAR_SIZE: usize = 32;
@@ -111,7 +113,58 @@ impl SecretScalar {
     pub fn public_point(&self) -> Point {
         Point(BackendPublic::from_secret_key(context(), &self.0))
     }
+
+    /// `self + tweak` modulo the group order.
+    ///
+    /// The scalar half of BIP32's derivation step, and the only arithmetic
+    /// this crate does on a secret. Its counterpart is [`Point::add_tweak`],
+    /// and the pair is what makes an xpub work: tweaking the key and tweaking
+    /// the point give the same keypair, so a public parent can derive a public
+    /// child without ever seeing the secret.
+    ///
+    /// # Errors
+    ///
+    /// [`TweakError::OutOfRange`] if `tweak` is not below [`GROUP_ORDER`], and
+    /// [`TweakError::NotAKey`] if the sum is zero. BIP32 requires both to be
+    /// handled by moving to the next child index rather than by failing, which
+    /// is why they are distinguishable — and each has a probability around
+    /// 2⁻¹²⁷, so no test can reach them.
+    pub fn add_tweak(&self, tweak: &[u8; SCALAR_SIZE]) -> Result<Self, TweakError> {
+        let tweak = Scalar::from_be_bytes(*tweak).map_err(|_| TweakError::OutOfRange)?;
+        self.0
+            .add_tweak(&tweak)
+            .map(SecretScalar)
+            .map_err(|_| TweakError::NotAKey)
+    }
 }
+
+/// Why a tweak could not be applied.
+///
+/// Both cases are unreachable in practice — each needs a 256-bit value to land
+/// in a range of vanishing size — but neither may be an `unwrap`, because both
+/// are reachable by *chosen* input rather than only by chance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TweakError {
+    /// The tweak is at or above [`GROUP_ORDER`], so it is not a scalar.
+    OutOfRange,
+    /// The result is the point at infinity, or the zero scalar — the two
+    /// values that are not a key.
+    NotAKey,
+}
+
+impl fmt::Display for TweakError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TweakError::OutOfRange => {
+                f.write_str("a tweak must be below the secp256k1 group order")
+            }
+            TweakError::NotAKey => f.write_str("the tweaked value is not a valid key"),
+        }
+    }
+}
+
+impl std::error::Error for TweakError {}
 
 /// The one libsecp256k1 context, built on first use.
 ///
@@ -129,6 +182,18 @@ impl SecretScalar {
 fn context() -> &'static Secp256k1<SignOnly> {
     static CTX: OnceLock<Secp256k1<SignOnly>> = OnceLock::new();
     CTX.get_or_init(Secp256k1::signing_only)
+}
+
+/// The verification context, for the two tweaks that need one.
+///
+/// A second context rather than widening the first to `All`. Tweaking a
+/// *point* is a verification-side operation in libsecp256k1's model, and the
+/// note above says a future capability should have to be asked for by name
+/// rather than inherited — so it is asked for here, by name, and the signing
+/// context stays narrow.
+fn verify_context() -> &'static Secp256k1<VerifyOnly> {
+    static CTX: OnceLock<Secp256k1<VerifyOnly>> = OnceLock::new();
+    CTX.get_or_init(Secp256k1::verification_only)
 }
 
 /// Prints nothing about the value. A secret that shows up in a log because
@@ -201,6 +266,52 @@ impl Point {
         let mut x = [0u8; SCALAR_SIZE];
         x.copy_from_slice(&self.to_compressed()[1..]);
         x
+    }
+
+    /// `self + tweak * G`.
+    ///
+    /// The point half of BIP32's derivation step — see
+    /// [`SecretScalar::add_tweak`] for why the two are a pair.
+    ///
+    /// # Errors
+    ///
+    /// [`TweakError::OutOfRange`] if `tweak` is not a scalar, or
+    /// [`TweakError::NotAKey`] if the sum is the point at infinity.
+    pub fn add_tweak(self, tweak: &[u8; SCALAR_SIZE]) -> Result<Self, TweakError> {
+        let tweak = Scalar::from_be_bytes(*tweak).map_err(|_| TweakError::OutOfRange)?;
+        self.0
+            .add_exp_tweak(verify_context(), &tweak)
+            .map(Point)
+            .map_err(|_| TweakError::NotAKey)
+    }
+
+    /// BIP340's tweak: take this point's even-`y` form, add `tweak * G`, and
+    /// return the result's `x`.
+    ///
+    /// Not the same operation as [`Point::add_tweak`], and the difference is
+    /// the whole of BIP340's parity convention: an x-only key names the point
+    /// with *even* `y`, so a point with odd `y` is negated before the addition
+    /// rather than after. Adding the tweak to the un-normalised point and
+    /// taking `x` would differ from every other implementation half the time —
+    /// which, since taproot addresses commit to exactly this value, means
+    /// half of the addresses would be unspendable.
+    ///
+    /// The output's own parity is discarded, because x-only is the encoding:
+    /// whoever spends re-derives it.
+    ///
+    /// # Errors
+    ///
+    /// [`TweakError`] as for [`Point::add_tweak`].
+    pub fn add_tweak_x_only(
+        self,
+        tweak: &[u8; SCALAR_SIZE],
+    ) -> Result<[u8; SCALAR_SIZE], TweakError> {
+        let tweak = Scalar::from_be_bytes(*tweak).map_err(|_| TweakError::OutOfRange)?;
+        let (x_only, _parity) = self.0.x_only_public_key();
+        x_only
+            .add_tweak(verify_context(), &tweak)
+            .map(|(tweaked, _parity)| tweaked.serialize())
+            .map_err(|_| TweakError::NotAKey)
     }
 
     /// Both coordinates, as a tools library should be able to show them.
@@ -403,6 +514,82 @@ mod tests {
         let mut hybrid = point.to_uncompressed();
         hybrid[0] = expected_parity;
         assert!(Point::from_sec1(&hybrid).is_err());
+    }
+
+    /// The property the whole of BIP32 rests on: tweaking the secret and
+    /// tweaking the point are the same operation, so a public parent derives
+    /// the same child as a private one. If this ever stopped holding, an xpub
+    /// would silently generate addresses nobody could spend.
+    #[test]
+    fn tweaking_the_scalar_and_tweaking_the_point_agree() {
+        let base = scalar("0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d")
+            .expect("a valid scalar");
+
+        for seed in 1..=8u8 {
+            let mut tweak = [0u8; SCALAR_SIZE];
+            tweak[31] = seed;
+            tweak[0] = seed.wrapping_mul(17);
+
+            let tweaked_secret = base.add_tweak(&tweak).expect("a small tweak is in range");
+            let tweaked_point = base
+                .public_point()
+                .add_tweak(&tweak)
+                .expect("the same tweak on the point");
+            assert_eq!(
+                tweaked_secret.public_point(),
+                tweaked_point,
+                "tweak {seed} broke the homomorphism"
+            );
+        }
+    }
+
+    /// A tweak at or above the group order is not a scalar, and is refused
+    /// rather than reduced — reducing it would make two tweaks equivalent.
+    #[test]
+    fn rejects_a_tweak_that_is_not_a_scalar() {
+        let base = scalar("0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d")
+            .expect("a valid scalar");
+        assert_eq!(base.add_tweak(&GROUP_ORDER), Err(TweakError::OutOfRange));
+        assert_eq!(
+            base.public_point().add_tweak(&GROUP_ORDER),
+            Err(TweakError::OutOfRange)
+        );
+        assert_eq!(
+            base.public_point().add_tweak_x_only(&GROUP_ORDER),
+            Err(TweakError::OutOfRange)
+        );
+    }
+
+    /// BIP340 names the point with even `y`, so the x-only tweak must negate
+    /// an odd-`y` point first. Two points sharing an `x` therefore tweak to
+    /// the same result — and that is exactly what the plain point tweak does
+    /// *not* do.
+    #[test]
+    fn the_x_only_tweak_normalises_parity_first() {
+        // `k` and `n - k` have the same x and opposite y, which is the pair
+        // the convention exists to collapse.
+        let k = scalar("0000000000000000000000000000000000000000000000000000000000000003")
+            .expect("3 is a scalar");
+        let mut negated = GROUP_ORDER;
+        negated[31] -= 3;
+        let negated = SecretScalar::from_be_bytes(&negated).expect("n - 3 is a scalar");
+
+        let (even, odd) = (k.public_point(), negated.public_point());
+        assert_eq!(even.to_x_only(), odd.to_x_only(), "same x");
+        assert_ne!(even.to_compressed(), odd.to_compressed(), "opposite parity");
+
+        let mut tweak = [0u8; SCALAR_SIZE];
+        tweak[31] = 7;
+        assert_eq!(
+            even.add_tweak_x_only(&tweak).unwrap(),
+            odd.add_tweak_x_only(&tweak).unwrap(),
+            "the x-only tweak must not depend on the parity it was handed"
+        );
+        // Whereas the plain tweak does, because it is a different operation.
+        assert_ne!(
+            even.add_tweak(&tweak).unwrap(),
+            odd.add_tweak(&tweak).unwrap()
+        );
     }
 
     /// A secret must not be printable by accident.

@@ -260,6 +260,94 @@ impl<'a> Reader<'a> {
 }
 
 /// Append `n` as a compact-size integer.
+/// Repack fixed-width bit groups into groups of a different width, most
+/// significant bit first, zero-padding the last one.
+///
+/// # Why this is a primitive
+///
+/// Two formats in this crate need it and they are three layers apart: bech32
+/// carries eight-bit bytes as five-bit groups, and BIP39 carries them as
+/// eleven-bit word indices. `8`, `5` and `11` share no factors, so neither is
+/// a reshape — every length has a remainder, and the remainder is where the
+/// bugs are. Written per format that is the same accumulate-and-emit loop
+/// twice, in `encoding` and in `hd`, with two chances to get the bit order
+/// backwards.
+///
+/// `from` and `to` are clamped to `1..=16`, and values wider than `from` bits
+/// are masked rather than rejected: the callers hold that invariant already —
+/// bech32's alphabet cannot produce a group above 31, and an eleven-bit read
+/// cannot produce one above 2047 — and [`unpack_bits`] is where a value from
+/// *outside* is checked.
+#[must_use]
+pub fn pack_bits(values: impl IntoIterator<Item = u16>, from: u32, to: u32) -> Vec<u16> {
+    let (mut out, bits, leftover) = regroup(values, from, to);
+    if bits > 0 {
+        out.push(leftover);
+    }
+    out
+}
+
+/// The inverse of [`pack_bits`], rejecting bits the output cannot account for.
+///
+/// # Returns
+///
+/// `None` if a value does not fit `from` bits, if the leftover run is `from`
+/// bits or longer — a whole input group that produced no output — or if the
+/// leftover bits are not zero. The last two are what BIP173 requires be
+/// rejected: both mean the input carries information the output cannot
+/// represent, which would give one value several spellings.
+#[must_use]
+pub fn unpack_bits(values: &[u16], from: u32, to: u32) -> Option<Vec<u16>> {
+    let from = from.clamp(1, 16);
+    if values.iter().any(|&v| u32::from(v) >> from != 0) {
+        return None;
+    }
+    let (unpacked, bits, leftover) = regroup(values.iter().copied(), from, to);
+    if bits >= from || leftover != 0 {
+        return None;
+    }
+    Some(unpacked)
+}
+
+/// The one loop. Returns the *whole* groups, then how many bits were left over
+/// and what they hold — which is what [`pack_bits`] appends as padding and
+/// what [`unpack_bits`] refuses to discard.
+fn regroup(values: impl IntoIterator<Item = u16>, from: u32, to: u32) -> (Vec<u16>, u32, u16) {
+    // Clamped rather than asserted: this is a primitive whose callers all pass
+    // literals, and a panic here would be the only one on a public path.
+    let from = from.clamp(1, 16);
+    let to = to.clamp(1, 16);
+    // At most `to - 1` bits are carried between iterations, so the accumulator
+    // never holds more than `from + to - 1`.
+    let mut accumulator = 0u32;
+    let mut bits = 0u32;
+    let in_mask = (1u32 << from) - 1;
+    let out_mask = (1u32 << to) - 1;
+    let mut out = Vec::new();
+
+    for value in values {
+        accumulator = accumulator << from | u32::from(value) & in_mask;
+        bits += from;
+        while bits >= to {
+            bits -= to;
+            // Masked to `to` bits, which is at most 16.
+            out.push(((accumulator >> bits) & out_mask) as u16);
+        }
+    }
+
+    // Only the low `bits` bits of the accumulator are still meaningful; the
+    // rest were emitted above and are stale. Masking before the shift is also
+    // what keeps it inside a u32.
+    let tail = accumulator & ((1u32 << bits) - 1);
+    (out, bits, (tail << (to - bits)) as u16 & out_mask as u16)
+}
+
+/// Append `n` as a compact-size varint, in its minimal form.
+///
+/// Minimal is the only form this crate writes, matching
+/// [`Reader::varint`], which is the only form it reads: a value written wider
+/// than it needs is rejected on the way in, so producing one would mean this
+/// crate could not read its own output.
 pub fn write_varint(out: &mut Vec<u8>, n: u64) {
     match n {
         0..=0xFC => out.push(n as u8),
@@ -293,6 +381,85 @@ pub const fn varint_len(n: u64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Both width pairs this crate uses, at every length. 8↔5 is bech32's and
+    /// 8↔11 is BIP39's, and neither divides the other, so almost every length
+    /// has a remainder — which is the half that gets written wrong.
+    #[test]
+    fn bit_groups_round_trip_at_both_widths() {
+        for (from, to) in [(8u32, 5u32), (8, 11), (5, 8), (11, 8)] {
+            for len in 0..=40usize {
+                let values: Vec<u16> = (0..len)
+                    .map(|i| u16::try_from(i).unwrap_or(0).wrapping_mul(37) & ((1 << from) - 1))
+                    .collect();
+                let packed = pack_bits(values.iter().copied(), from, to);
+                assert!(
+                    packed.iter().all(|&g| u32::from(g) >> to == 0),
+                    "{from}->{to} produced a group too wide"
+                );
+                assert_eq!(
+                    packed.len(),
+                    (len * from as usize).div_ceil(to as usize),
+                    "{from}->{to} at {len}"
+                );
+
+                // Unpacking gives the values back, and then whatever whole
+                // groups the padding was long enough to fill — which are
+                // zeros, because that is what the padding is. Anything else
+                // would mean a bit had moved.
+                let back = unpack_bits(&packed, to, from)
+                    .unwrap_or_else(|| panic!("{from}->{to} at {len}: rejected its own output"));
+                let padding = packed.len() * to as usize - len * from as usize;
+                assert_eq!(
+                    back.len(),
+                    len + padding / from as usize,
+                    "{from}->{to} at {len}: {padding} bits of padding"
+                );
+                assert_eq!(&back[..len], &values[..], "{from}->{to} at {len}");
+                assert!(
+                    back[len..].iter().all(|&v| v == 0),
+                    "{from}->{to} at {len}: padding came back as data"
+                );
+            }
+        }
+    }
+
+    /// Padding bits that are not zero mean the input carries information no
+    /// output group accounts for — the case BIP173 names, where one witness
+    /// program would otherwise have several spellings.
+    #[test]
+    fn leftover_bits_are_refused_rather_than_dropped() {
+        // Ten bits is one byte and two of padding. Zero padding is what the
+        // packer wrote…
+        assert_eq!(unpack_bits(&[0, 0], 5, 8), Some(vec![0]));
+        assert_eq!(unpack_bits(&[1, 0], 5, 8), Some(vec![8]));
+        // …and anything else is not.
+        assert_eq!(unpack_bits(&[0, 1], 5, 8), None);
+        // Five leftover bits are a whole group that produced nothing.
+        assert_eq!(unpack_bits(&[0], 5, 8), None);
+        assert_eq!(unpack_bits(&[1], 5, 8), None);
+        // A value that does not fit the width it claims.
+        assert_eq!(unpack_bits(&[32], 5, 8), None);
+        assert_eq!(unpack_bits(&[2048], 11, 8), None);
+        // Nothing in, nothing out, and nothing left over.
+        assert_eq!(unpack_bits(&[], 5, 8), Some(vec![]));
+        assert!(pack_bits(std::iter::empty(), 8, 5).is_empty());
+    }
+
+    /// Widths are clamped rather than asserted, so a caller cannot panic this
+    /// primitive from outside — the crate's no-panic rule reaches here too.
+    #[test]
+    fn nonsense_widths_are_clamped_not_panicked_on() {
+        assert_eq!(
+            pack_bits([1u16].into_iter(), 0, 5),
+            pack_bits([1u16].into_iter(), 1, 5)
+        );
+        assert_eq!(
+            pack_bits([1u16].into_iter(), 99, 99),
+            pack_bits([1u16].into_iter(), 16, 16)
+        );
+        assert_eq!(unpack_bits(&[1], 0, 0), unpack_bits(&[1], 1, 1));
+    }
 
     #[test]
     fn reads_little_endian_integers() {

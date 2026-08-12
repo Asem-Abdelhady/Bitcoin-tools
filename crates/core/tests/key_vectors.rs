@@ -72,8 +72,29 @@ fn real_public_keys_hash_to_their_committed_pubkey_hash() {
                 .parse()
                 .unwrap_or_else(|e| panic!("{at}: address did not parse back: {e}"));
             assert_eq!(parsed, address, "{at}");
-            assert_eq!(parsed.kind(), AddressKind::P2pkh, "{at}");
-            assert_eq!(parsed.hash(), key.pubkey_hash(), "{at}");
+            assert_eq!(parsed.kind(), Some(AddressKind::P2pkh), "{at}");
+            assert_eq!(
+                parsed
+                    .as_base58()
+                    .unwrap_or_else(|| panic!("{at}: a 1… address is base58"))
+                    .hash(),
+                key.pubkey_hash(),
+                "{at}"
+            );
+
+            // The same key, the same twenty bytes, written as a witness
+            // program instead — a different address for the same commitment,
+            // which is the fact segwit addresses are easiest to get wrong.
+            let native = key
+                .p2wpkh_address(Network::Mainnet)
+                .unwrap_or_else(|e| panic!("{at}: p2wpkh: {e}"));
+            assert!(native.to_string().starts_with("bc1q"), "{at}: {native}");
+            assert_eq!(
+                native.as_segwit().map(|a| a.program().to_vec()),
+                Some(key.pubkey_hash().as_bytes().to_vec()),
+                "{at}"
+            );
+            assert_ne!(native.to_string(), address.to_string(), "{at}");
 
             checked += 1;
         }
@@ -111,8 +132,9 @@ fn p2sh_outputs_round_trip_as_addresses() {
                     "a mainnet P2SH address starts with 3, got {address}"
                 );
                 let parsed: Address = address.to_string().parse().expect("parses back");
-                assert_eq!(parsed.hash(), hash);
-                assert_eq!(parsed.kind(), AddressKind::P2sh);
+                let base58 = parsed.as_base58().expect("a 3… address is base58");
+                assert_eq!(base58.hash(), hash);
+                assert_eq!(parsed.kind(), Some(AddressKind::P2sh));
                 assert_eq!(parsed.network(), Network::Mainnet);
                 checked += 1;
             }

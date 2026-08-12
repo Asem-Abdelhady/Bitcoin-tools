@@ -11,12 +11,16 @@
 //! | File | Feature |
 //! |---|---|
 //! | `base58.rs` | Base58 and Base58Check, exposing the payload/checksum split |
-//!
-//! ## Planned
-//!
-//! | File | Feature |
-//! |---|---|
 //! | `bech32.rs` | Bech32 and Bech32m, exposing the HRP/data/checksum split |
+//!
+//! ## Neither codec knows what it is encoding
+//!
+//! `base58.rs` takes a payload and prepends nothing; `bech32.rs` takes a
+//! prefix and five-bit groups. Which version byte an address uses, which
+//! prefix a network has, and whether a witness version and a bech32 variant
+//! agree are all [`keys::address`](crate::keys::address)' business one layer
+//! up. That is what lets one Base58Check serve WIF keys, two address kinds
+//! and BIP32 extended keys, and one bech32 serve three witness types.
 //!
 //! ## The base conversion is not written here
 //!
@@ -33,5 +37,7 @@
 //! away exactly the intermediate values this tool exists to show.
 
 pub mod base58;
+pub mod bech32;
 
 pub use base58::{Base58Error, Parts};
+pub use bech32::{Bech32Error, Decoded, Variant};

@@ -167,6 +167,22 @@ impl PrivateKey {
         })
     }
 
+    /// Wrap a scalar that has already been validated.
+    ///
+    /// The way [`Xpriv`](crate::hd::Xpriv) hands over: it holds a
+    /// [`SecretScalar`] the curve layer already accepted, and without this it
+    /// would have to go out through 32 bytes and back in through
+    /// [`PrivateKey::from_be_bytes`] — a copy of the secret and a
+    /// re-validation, to reach a value that is already in hand.
+    #[must_use]
+    pub const fn from_scalar(scalar: SecretScalar, network: Network, compressed: bool) -> Self {
+        PrivateKey {
+            scalar,
+            network,
+            compressed,
+        }
+    }
+
     /// Read a key written as 64 hex digits.
     ///
     /// # Errors
