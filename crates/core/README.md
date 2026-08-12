@@ -68,19 +68,18 @@ src/
 │   ├── sha256.rs         ✓ 2.3
 │   ├── hash256.rs        ✓ 2.1  double SHA-256
 │   ├── hash160.rs        ✓ 2.2  RIPEMD160(SHA256)
-│   ├── hash.rs             Hash<const N> newtype — lands with the second
-│   │                       hash type, and ports Txid onto it
+│   ├── hash.rs           ✓ Hash<const N> — storage, width, hex, both orders
 │   └── hmac.rs             HMAC-SHA512, PBKDF2 — for BIP32/39
 ├── encoding/               shared codecs
-│   ├── base58.rs           Base58, Base58Check
+│   ├── base58.rs         ✓ Base58, Base58Check
 │   └── bech32.rs           Bech32, Bech32m
 ├── crypto/                 § 7
-│   ├── secp.rs             the one secp256k1 entry point
+│   ├── secp.rs           ✓ the one secp256k1 entry point
 │   └── ecdsa.rs            7.1 sign, 7.2 verify, Signature
-├── keys/                   § 3
-│   ├── private.rs          3.1  PrivateKey, WIF
-│   ├── public.rs           3.2  PublicKey: (x,y) / compressed / x-only
-│   └── address.rs          3.2  Address, AddressParts
+├── keys/                 ✓ § 3
+│   ├── private.rs        ✓ 3.1  PrivateKey, WIF
+│   ├── public.rs         ✓ 3.2  PublicKey: (x,y) / compressed / x-only
+│   └── address.rs        ✓ 3.2  Address, AddressParts
 ├── hd/                     § 4
 │   ├── mnemonic.rs         4.1  BIP39
 │   ├── wordlist.rs         4.1  the 2048 words
@@ -135,8 +134,8 @@ exposed as the feature described. **Planned** — not written.
 
 | | Feature | Status | Notes |
 |---|---|---|---|
-| 3.1 | Private Key | Planned | Random 256-bit key as binary, decimal, and hex, plus WIF. Must reject zero and anything at or above the secp256k1 group order. |
-| 3.2 | Public Key | Planned | Derived from a private key: x and y; compressed with its `02`/`03` prefix; uncompressed `04`; x-only; Base58Check address; and P2PKH and P2SH per network, split into prefix, hash, and checksum. |
+| 3.1 | Private Key | **Done** | The key as binary, decimal and hex (via `Number`), plus WIF carrying its network and compression flag. Zero and anything at or above the group order are rejected, as separate errors. Generation is behind the `rand` feature. Verified against the published WIF worked example. |
+| 3.2 | Public Key | **Done** | x and y; compressed with its `02`/`03` prefix; uncompressed `04`; x-only; and P2PKH/P2SH addresses per network with `AddressParts` giving version, hash and checksum. Verified against the generator point, the published key→address worked example, the genesis address, and five mainnet public keys whose committed hash the crate reproduces. Bech32 address types land with 4.2's encoder. |
 
 ### 4. HD Wallets
 
@@ -171,6 +170,7 @@ exposed as the feature described. **Planned** — not written.
 
 | Feature | Default | What it adds |
 |---|---|---|
+| `rand` | no | `PrivateKey::generate`. Off by default: inspecting a key has no reason to link an RNG, and a tool that only decodes should not be able to mint a secret by accident. |
 | `serde` | yes | `Serialize` on the value types a caller renders, plus `Deserialize` on the few that are *inputs* — `Network` and `Base` name a choice a request makes, so they have to be read as well as written. The web server needs this; a CLI turns it off and uses `FromStr`, which every one of those types also has. |
 
 Anything gated must also compile without it:
@@ -179,18 +179,17 @@ Anything gated must also compile without it:
 cargo check -p bitcoin-tools-core --no-default-features
 ```
 
-Planned: `rand`, gating private-key and mnemonic *generation*. Decoding has no
-reason to link an RNG.
+Planned: nothing further here — `rand` shipped with 3.1.
 
 ## Dependencies
 
-Present: `sha2`, `ripemd`, `serde` (optional).
+Present: `sha2`, `ripemd`, `secp256k1`, `serde` (optional), `rand` (optional).
 
 `ripemd` is pinned to the 0.2 line rather than 0.1 so it shares RustCrypto's
 `digest` 0.11 with `sha2`; the 0.1 line is built on `digest` 0.10 and would put
 two copies of it in the tree.
 
-Planned: `secp256k1` (3.x, 7.x), and something for BIP39
+Planned: something for BIP39
 PBKDF2 and Unicode NFKD normalization (4.1).
 
 Base58 and Bech32 are **not** taken from `bs58` and `bech32`. Feature 3.2 calls
@@ -205,9 +204,12 @@ of having it.
 
 ## Conventions
 
-- **Byte order is explicit in the type.** `Txid` stores wire order and its
-  `Display` reverses, because that is what explorers show. Every new hash type
-  does the same. A caller must not be able to print the wrong order by accident.
+- **Byte order belongs to the meaning, not the width.** A merkle root and a
+  P2WSH commitment are both 32 bytes and only the first is shown reversed, so
+  `Hash<N>` cannot decide this: it stores wire order, renders wire order, and
+  offers the reversal by name. A type whose convention *is* reversed says so in
+  its own one-line `Display` — `Txid` is the example. Write that line when you
+  add a hash type, and never let a caller print the wrong order by accident.
 - **Hex is one codec.** `hex`. Do not hand-roll another.
 - **A named enum is spelled once.** `Network`, `Base` and `Denomination` all
   name a small closed set, print one spelling, and read back several. That set
@@ -217,6 +219,11 @@ of having it.
 - **Bytes are walked one way.** `bytes::Reader` bounds-checks every read,
   validates counts before allocating, rejects non-canonical varints, and never
   panics. Do not write another cursor.
+- **Every public item is documented.** `missing_docs` is on in `lib.rs`, so
+  this is checked rather than hoped for.
+- **A hash type is a newtype over `Hash<N>` plus a `Display`.** `Hash<N>`
+  carries the storage, the width check and the hex codec, so a new one is two
+  lines rather than seventy.
 - **No panics on public paths.** `unwrap`, `expect` and `panic!` are `warn` on
   the library target (see `lib.rs`) and allowed in tests, where a failed
   assertion is the point.

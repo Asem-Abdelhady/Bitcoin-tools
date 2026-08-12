@@ -28,10 +28,16 @@ default = ["serde"]
 # server needs it; a CLI turns it off. Anything gated here must also compile
 # with `--no-default-features`.
 serde = ["dep:serde"]
+# Key *generation*. Off by default: decoding an existing key has no reason to
+# link an RNG, and a tool that only inspects should not be able to mint a
+# secret by accident. Everything else in `keys` works without it.
+rand = ["dep:rand"]
 
 [dependencies]
 ripemd.workspace = true
+secp256k1.workspace = true
 sha2.workspace = true
+rand = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

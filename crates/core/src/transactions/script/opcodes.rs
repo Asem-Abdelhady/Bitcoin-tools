@@ -20,10 +20,13 @@ pub struct Opcode(u8);
 
 impl Opcode {
     /// Total and infallible: every byte is some opcode.
+    #[must_use]
     pub const fn from_u8(b: u8) -> Self {
         Opcode(b)
     }
 
+    /// The byte this opcode is.
+    #[must_use]
     pub const fn to_u8(self) -> u8 {
         self.0
     }
@@ -32,6 +35,7 @@ impl Opcode {
     ///
     /// `OP_PUSHDATA1/2/4` return `None`: their length lives in the bytes that
     /// follow, so the decoder resolves it, not the opcode.
+    #[must_use]
     pub const fn push_len(self) -> Option<usize> {
         match self.0 {
             b @ 0x01..=0x4b => Some(b as usize),
@@ -41,6 +45,7 @@ impl Opcode {
 
     /// Width in bytes of the length prefix this opcode reads from the script.
     /// `None` for everything that is not `OP_PUSHDATA1/2/4`.
+    #[must_use]
     pub const fn pushdata_width(self) -> Option<usize> {
         match self.0 {
             0x4c => Some(1),
@@ -51,6 +56,7 @@ impl Opcode {
     }
 
     /// True for the opcodes that consume a length prefix from the script.
+    #[must_use]
     pub const fn is_pushdata(self) -> bool {
         self.pushdata_width().is_some()
     }
@@ -60,6 +66,7 @@ impl Opcode {
     ///
     /// A direct push (0x01..=0x4b) can only carry exactly its own value, so
     /// its maximum is also its minimum.
+    #[must_use]
     pub const fn push_max_len(self) -> Option<usize> {
         match self.0 {
             b @ 0x01..=0x4b => Some(b as usize),
@@ -71,6 +78,7 @@ impl Opcode {
     }
 
     /// True if this opcode pushes a value of any kind (data, number, or empty).
+    #[must_use]
     pub const fn is_push(self) -> bool {
         matches!(
             self.category(),
@@ -81,6 +89,7 @@ impl Opcode {
     /// BIP342: in tapscript these bytes make the whole script succeed
     /// immediately, and are reserved for future soft forks. In legacy and
     /// segwit v0 the same bytes are disabled, reserved, or unassigned.
+    #[must_use]
     pub const fn is_tapscript_success(self) -> bool {
         matches!(self.0,
             0x50 | 0x62 | 0x7e..=0x81 | 0x83..=0x86 | 0x89 | 0x8a
@@ -142,6 +151,7 @@ macro_rules! define_opcodes {
             }
 
             /// What this opcode does, for display in a decoder UI.
+            #[must_use]
             pub const fn describe(self) -> Option<&'static str> {
                 match self.0 {
                     $( $byte => Some($doc), )*
@@ -150,6 +160,8 @@ macro_rules! define_opcodes {
                 }
             }
 
+            /// Which broad group this opcode belongs to.
+            #[must_use]
             pub const fn category(self) -> Category {
                 match self.0 {
                     $( $byte => Category::$cat, )*
@@ -283,13 +295,17 @@ pub mod alias {
     use super::Opcode;
     use super::all;
 
+    /// `OP_0` under the name used when it is read as a boolean.
     pub const OP_FALSE: Opcode = all::OP_0;
+    /// `OP_1` under the name used when it is read as a boolean.
     pub const OP_TRUE: Opcode = all::OP_1;
     /// Renamed by BIP65.
     pub const OP_NOP2: Opcode = all::OP_CHECKLOCKTIMEVERIFY;
     /// Renamed by BIP112.
     pub const OP_NOP3: Opcode = all::OP_CHECKSEQUENCEVERIFY;
+    /// The abbreviation most tooling prints.
     pub const OP_CLTV: Opcode = all::OP_CHECKLOCKTIMEVERIFY;
+    /// The abbreviation most tooling prints.
     pub const OP_CSV: Opcode = all::OP_CHECKSEQUENCEVERIFY;
 }
 

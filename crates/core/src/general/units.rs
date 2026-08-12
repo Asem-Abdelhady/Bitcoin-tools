@@ -131,9 +131,15 @@ pub enum ParseAmountError {
     Negative,
     /// A character that is neither a digit nor the decimal point. The offset
     /// is a byte offset into the trimmed string.
-    InvalidChar { offset: usize },
+    InvalidChar {
+        /// Byte offset into the trimmed string.
+        offset: usize,
+    },
     /// A second decimal point, at this byte offset in the trimmed string.
-    MoreThanOnePoint { offset: usize },
+    MoreThanOnePoint {
+        /// Byte offset of the second point.
+        offset: usize,
+    },
     /// More significant fractional digits than the unit can hold — the one
     /// error that exists to stop money being silently rounded away.
     /// `0.000000001 BTC` is a tenth of a satoshi, which is not an amount.

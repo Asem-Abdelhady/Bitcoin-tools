@@ -13,12 +13,19 @@ use crate::bytes::Reader;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction<'a> {
     /// A data push, with the opcode that introduced it.
-    Push { opcode: Opcode, data: &'a [u8] },
+    Push {
+        /// The push opcode — a direct `0x01..=0x4b`, or an `OP_PUSHDATA*`.
+        opcode: Opcode,
+        /// The bytes pushed, borrowed from the script.
+        data: &'a [u8],
+    },
     /// Any opcode that takes no operand from the byte stream.
     Op(Opcode),
 }
 
 impl Instruction<'_> {
+    /// The opcode, whether or not it carries data.
+    #[must_use]
     pub fn opcode(&self) -> Opcode {
         match self {
             Instruction::Push { opcode, .. } => *opcode,
@@ -26,6 +33,8 @@ impl Instruction<'_> {
         }
     }
 
+    /// The pushed bytes, or `None` for an opcode that takes no operand.
+    #[must_use]
     pub fn data(&self) -> Option<&[u8]> {
         match self {
             Instruction::Push { data, .. } => Some(data),
@@ -33,6 +42,8 @@ impl Instruction<'_> {
         }
     }
 
+    /// The opcode's broad grouping.
+    #[must_use]
     pub fn category(&self) -> Category {
         self.opcode().category()
     }
@@ -44,6 +55,11 @@ impl Instruction<'_> {
     /// stops a caller pairing `OP_PUSHDATA1` with 300 bytes, and truncating
     /// that length into one byte would emit a script that re-decodes into
     /// something entirely different, with no error to show for it.
+    ///
+    /// # Errors
+    ///
+    /// [`EncodeError`] when the payload does not fit what the opcode can
+    /// express. Nothing is appended to `out` when that happens.
     pub fn encode_into(&self, out: &mut Vec<u8>) -> Result<(), EncodeError> {
         match self {
             Instruction::Op(op) => out.push(op.to_u8()),
@@ -118,12 +134,20 @@ impl fmt::Display for Instruction<'_> {
 pub enum DecodeError {
     /// A push wanted more bytes than the script had left.
     Truncated {
+        /// Where the push started.
         offset: usize,
+        /// How many bytes it declared.
         declared: usize,
+        /// How many were left.
         available: usize,
     },
     /// An `OP_PUSHDATA1/2/4` length prefix itself ran off the end.
-    TruncatedLengthPrefix { offset: usize, opcode: Opcode },
+    TruncatedLengthPrefix {
+        /// Where the instruction started.
+        offset: usize,
+        /// Which `OP_PUSHDATA*` ran out mid-prefix.
+        opcode: Opcode,
+    },
 }
 
 impl fmt::Display for DecodeError {
@@ -155,20 +179,31 @@ impl std::error::Error for DecodeError {}
 pub enum EncodeError {
     /// The payload is longer than this push opcode's prefix can express.
     PushTooLong {
+        /// The push opcode.
         opcode: Opcode,
+        /// The payload length offered.
         len: usize,
+        /// The largest its prefix can express.
         max: usize,
     },
     /// A direct push (0x01..=0x4b) whose payload is not exactly the length
     /// its opcode names. Too short corrupts the stream just as badly as too
     /// long: the bytes that follow get eaten as payload.
     PushLenMismatch {
+        /// The direct push opcode.
         opcode: Opcode,
+        /// The payload length offered.
         len: usize,
+        /// The length the opcode names, which is the only one it can carry.
         expected: usize,
     },
     /// A `Push` was built around an opcode that does not push data at all.
-    NotAPush { opcode: Opcode, len: usize },
+    NotAPush {
+        /// The opcode, which pushes nothing.
+        opcode: Opcode,
+        /// How many bytes were paired with it anyway.
+        len: usize,
+    },
 }
 
 impl fmt::Display for EncodeError {
@@ -194,7 +229,9 @@ impl std::error::Error for EncodeError {}
 /// A decoded instruction together with its byte offset in the script.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Step<'a> {
+    /// Byte offset of this instruction within the script.
     pub offset: usize,
+    /// What decoded at [`Step::offset`].
     pub instruction: Instruction<'a>,
 }
 

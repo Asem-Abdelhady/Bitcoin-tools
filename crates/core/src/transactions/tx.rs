@@ -17,85 +17,75 @@ use std::num::NonZeroUsize;
 use super::script::Script;
 use crate::bytes::{ReadError, Reader, write_varint};
 use crate::general::Amount;
-use crate::hashes::hash256;
+use crate::hashes::{Hash, HashParseError, hash256};
 use crate::hex::{self, HexError};
 
-/// A transaction id: 32 bytes in *internal* (wire) order.
+/// A transaction id.
 ///
-/// Bitcoin displays txids byte-reversed, which [`fmt::Display`] does; the
-/// bytes as they appear inside a serialized transaction are [`Txid::to_wire`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Txid([u8; 32]);
+/// Thirty-two bytes in *internal* (wire) order, with a [`fmt::Display`] that
+/// reverses — the order block explorers and RPC print. That one `Display` impl
+/// is the entire statement of this type's byte-order convention; everything
+/// else comes from [`struct@Hash`], which stores wire order and never guesses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Txid(Hash<32>);
 
 impl Txid {
+    /// Wrap bytes as they appear inside a serialized transaction.
+    #[must_use]
     pub const fn from_wire(bytes: [u8; 32]) -> Self {
-        Txid(bytes)
+        Txid(Hash::from_bytes(bytes))
     }
 
+    /// The bytes as they appear inside a serialized transaction.
+    #[must_use]
     pub const fn to_wire(self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+
+    /// The underlying digest, for anything that is about thirty-two bytes
+    /// rather than about a transaction — a merkle tree, say.
+    ///
+    /// **The value returned prints in wire order.** [`struct@Hash`]'s
+    /// `Display` is the forward one and the reversal lives on `Txid` alone, so
+    /// `txid.to_string()` and `txid.to_hash().to_string()` are the same bytes
+    /// rendered opposite ways. Reach for
+    /// [`Hash::to_hex_reversed`](crate::hashes::Hash::to_hex_reversed) if you
+    /// want the explorer form from a bare hash.
+    #[must_use]
+    pub const fn to_hash(self) -> Hash<32> {
         self.0
+    }
+
+    /// Take a digest as a transaction id, in wire order.
+    ///
+    /// The inverse of [`Txid::to_hash`], so a caller who went down to the
+    /// digest can come back without routing through raw bytes.
+    #[must_use]
+    pub const fn from_hash(hash: Hash<32>) -> Self {
+        Txid(hash)
     }
 }
 
 impl fmt::Display for Txid {
     /// Reversed — the order block explorers and RPC use.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        hex::write_rev(f, &self.0)
-    }
-}
-
-/// A string was not a displayed txid.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum TxidParseError {
-    /// Not hex at all.
-    Hex(HexError),
-    /// Hex, but not 32 bytes.
-    WrongLength { got: usize },
-}
-
-impl fmt::Display for TxidParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TxidParseError::Hex(e) => write!(f, "{e}"),
-            TxidParseError::WrongLength { got } => {
-                write!(f, "a txid is 32 bytes, got {got}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for TxidParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            TxidParseError::Hex(e) => Some(e),
-            TxidParseError::WrongLength { .. } => None,
-        }
-    }
-}
-
-impl From<HexError> for TxidParseError {
-    fn from(e: HexError) -> Self {
-        TxidParseError::Hex(e)
+        f.pad(&self.0.to_hex_reversed())
     }
 }
 
 impl std::str::FromStr for Txid {
-    type Err = TxidParseError;
+    type Err = HashParseError;
 
     /// Parses the **displayed** form, undoing the reversal that
     /// [`fmt::Display`] applies, so `txid.to_string().parse()` is the
     /// identity.
     ///
-    /// This exists to close a trap: hex-decoding an explorer txid straight
-    /// into [`Txid::from_wire`] yields a byte-reversed value that nothing
+    /// This closes a trap: hex-decoding an explorer txid straight into
+    /// [`Txid::from_wire`] yields a byte-reversed value that nothing
     /// downstream can detect. Byte order is a decision this type makes, not
     /// one it leaves to the caller.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = hex::decode_rev(hex::normalize(s))?;
-        let wire = <[u8; 32]>::try_from(bytes.as_slice())
-            .map_err(|_| TxidParseError::WrongLength { got: bytes.len() })?;
-        Ok(Txid(wire))
+        Hash::from_hex_reversed(s).map(Txid)
     }
 }
 
@@ -111,7 +101,9 @@ impl serde::Serialize for Txid {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct OutPoint {
+    /// The transaction that created the output being spent.
     pub txid: Txid,
+    /// Which of that transaction's outputs, counting from zero.
     pub vout: u32,
 }
 
@@ -121,29 +113,44 @@ pub struct OutPoint {
 pub struct Witness(Vec<Vec<u8>>);
 
 impl Witness {
+    /// Build a witness from its stack items, bottom first.
+    #[must_use]
     pub fn new(items: Vec<Vec<u8>>) -> Self {
         Witness(items)
     }
 
+    /// The stack items, in the order they are serialized.
+    #[must_use]
     pub fn items(&self) -> &[Vec<u8>] {
         &self.0
     }
 
+    /// True for an input with no witness data — every input of a legacy
+    /// transaction, and any non-witness input of a segwit one.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// How many stack items there are.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 }
 
+/// One input: what it spends, and the evidence it may.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Input {
+    /// The output being spent.
     pub previous_output: OutPoint,
+    /// The unlocking script. Empty for a native segwit input, which puts its
+    /// evidence in the witness instead.
     pub script_sig: Script,
+    /// BIP68 relative locktime and RBF signalling, or `0xffffffff` for
+    /// neither.
     pub sequence: u32,
     /// One witness per input, always — empty when this input has none.
     /// A transaction can mix witness and non-witness inputs, so this cannot
@@ -151,6 +158,7 @@ pub struct Input {
     pub witness: Witness,
 }
 
+/// One output: an amount and the conditions to claim it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -163,16 +171,24 @@ pub struct Output {
     /// would mean this type could not hold a transaction the decoder is
     /// expected to explain.
     pub value: Amount,
+    /// The locking script — the conditions for spending this output.
     pub script_pubkey: Script,
 }
 
+/// A decoded transaction — the semantic view. For the byte layout, see
+/// [`TxBreakdown`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Tx {
+    /// Transaction version. Consensus reads 2 as enabling BIP68 relative
+    /// locktimes; nothing rejects other values outright.
     pub version: u32,
+    /// What this transaction spends. Never empty in a valid transaction.
     pub inputs: Vec<Input>,
+    /// What it pays.
     pub outputs: Vec<Output>,
+    /// The earliest height or time this may be mined, or 0 for no constraint.
     pub lock_time: u32,
     /// Whether this transaction was serialized in segwit form (BIP144 marker
     /// and flag present). Kept from decoding so re-encoding is byte-exact: a
@@ -182,10 +198,13 @@ pub struct Tx {
     pub segwit: bool,
 }
 
+/// Why bytes were not a transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TxDecodeError {
+    /// No bytes at all.
     Empty,
+    /// The input was not hex — only from [`Tx::from_hex`].
     Hex(HexError),
     /// The byte stream ran out, or declared a count that could not fit.
     Read(ReadError),
@@ -193,11 +212,14 @@ pub enum TxDecodeError {
     NoInputs,
     /// BIP144 says the byte after the marker must be non-zero.
     BadSegwitFlag {
+        /// The byte found where `0x01` was required.
         flag: u8,
     },
     /// Decoded successfully but bytes were left over.
     TrailingBytes {
+        /// Bytes the transaction actually used.
         consumed: usize,
+        /// Bytes supplied.
         total: usize,
     },
 }
@@ -253,16 +275,26 @@ impl Tx {
 
     /// The smallest an input can serialize to: 32 txid + 4 vout
     /// + 1 script length + 4 sequence.
-    const MIN_INPUT_SIZE: NonZeroUsize = NonZeroUsize::new(41).unwrap();
+    const MIN_INPUT_SIZE: NonZeroUsize = NonZeroUsize::MIN.saturating_add(40);
     /// 8 value + 1 script length.
-    const MIN_OUTPUT_SIZE: NonZeroUsize = NonZeroUsize::new(9).unwrap();
+    const MIN_OUTPUT_SIZE: NonZeroUsize = NonZeroUsize::MIN.saturating_add(8);
 
+    /// Decode a transaction written in hex, accepting `0x` and whitespace.
+    ///
+    /// # Errors
+    ///
+    /// [`TxDecodeError`] for bad hex or bytes that are not a transaction.
     pub fn from_hex(s: &str) -> Result<Self, TxDecodeError> {
         let bytes = hex::decode(hex::normalize(s))?;
         Tx::decode(&bytes)
     }
 
     /// Decode a full consensus-serialized transaction, BIP144 aware.
+    ///
+    /// # Errors
+    ///
+    /// [`TxDecodeError`] if the bytes are empty, run out, declare an
+    /// impossible count, carry a bad segwit flag, or leave trailing bytes.
     pub fn decode(bytes: &[u8]) -> Result<Self, TxDecodeError> {
         if bytes.is_empty() {
             return Err(TxDecodeError::Empty);
@@ -348,17 +380,20 @@ impl Tx {
     }
 
     /// True if any input actually carries witness data.
+    #[must_use]
     pub fn has_witness(&self) -> bool {
         self.inputs.iter().any(|i| !i.witness.is_empty())
     }
 
     /// Consensus serialization, including witnesses if this is a segwit tx.
+    #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         self.encode_inner(self.segwit)
     }
 
     /// Serialization with marker, flag, and witnesses stripped — the form the
     /// txid is computed over.
+    #[must_use]
     pub fn encode_legacy(&self) -> Vec<u8> {
         self.encode_inner(false)
     }
@@ -399,11 +434,13 @@ impl Tx {
 
     /// Hash of the witness-stripped serialization. Equal to [`Tx::wtxid`] for
     /// a transaction with no witness data.
+    #[must_use]
     pub fn txid(&self) -> Txid {
         Txid::from_wire(hash256(&self.encode_legacy()))
     }
 
     /// Hash of the full serialization, witnesses included.
+    #[must_use]
     pub fn wtxid(&self) -> Txid {
         Txid::from_wire(hash256(&self.encode()))
     }
@@ -420,6 +457,7 @@ impl Tx {
     ///
     /// Use [`Amount::checked_add`] where a consensus-valid total is what you
     /// want and an overflow should stop you.
+    #[must_use]
     pub fn total_output_value(&self) -> u128 {
         self.outputs
             .iter()
@@ -444,55 +482,84 @@ fn varint_hex(n: u64) -> String {
 /// decomposition as the vectors in `vectors/`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxBreakdown {
+    /// The txid in **displayed** (reversed) order — the form an explorer
+    /// shows. Note that [`InputBreakdown::txid`] is the opposite: a wire-order
+    /// field copied out of the serialization.
     pub txid: String,
     /// Segwit transactions only.
     pub wtxid: Option<String>,
+    /// The four version bytes, little-endian as serialized.
     pub version: String,
     /// Segwit transactions only.
     pub marker: Option<String>,
     /// Segwit transactions only.
     pub flag: Option<String>,
+    /// The input count varint, as the bytes it occupies.
     pub input_count: String,
+    /// One entry per input, in serialization order.
     pub inputs: Vec<InputBreakdown>,
+    /// The output count varint, as the bytes it occupies.
     pub output_count: String,
+    /// One entry per output, in serialization order.
     pub outputs: Vec<OutputBreakdown>,
     /// Segwit transactions only; one entry per input, in input order.
     pub witness: Option<Vec<WitnessBreakdown>>,
+    /// The four locktime bytes, little-endian as serialized.
     pub locktime: String,
+    /// The whole transaction, re-encoded — byte-identical to what came in.
     pub raw_tx: String,
 }
 
+/// One input's wire fields, each as the hex bytes it occupies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InputBreakdown {
-    /// Wire order, i.e. the bytes as serialized — not the displayed txid.
+    /// The previous txid in **wire** order, i.e. the bytes as serialized.
+    /// This is the reverse of [`TxBreakdown::txid`], which is the displayed
+    /// form — the two fields share a name because the wire and the explorer
+    /// do.
     pub txid: String,
+    /// The output index, little-endian.
     pub vout: String,
+    /// The scriptSig length varint.
     pub script_sig_size: String,
+    /// The scriptSig's bytes, hex — not a decoded script.
     pub script_sig: String,
+    /// The sequence number, little-endian.
     pub sequence: String,
 }
 
+/// One output's wire fields, each as the hex bytes it occupies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputBreakdown {
+    /// The value in satoshis, little-endian over eight bytes.
     pub amount: String,
+    /// The scriptPubKey length varint.
     pub script_pubkey_size: String,
+    /// The scriptPubKey's bytes, hex — not a decoded script.
     pub script_pubkey: String,
 }
 
+/// One input's witness, as wire fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WitnessBreakdown {
+    /// The stack-item count varint.
     pub stack_items: String,
+    /// The items, bottom of the stack first.
     pub items: Vec<WitnessItemBreakdown>,
 }
 
+/// One witness stack item, as wire fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WitnessItemBreakdown {
+    /// The item's length varint.
     pub size: String,
+    /// The item's bytes, hex.
     pub item: String,
 }
 
 impl Tx {
     /// Split into labelled wire fields.
+    #[must_use]
     pub fn breakdown(&self) -> TxBreakdown {
         TxBreakdown {
             txid: self.txid().to_string(),
@@ -615,24 +682,48 @@ mod tests {
         assert_eq!(format!("  0x{shown} \n").parse::<Txid>().unwrap(), txid);
     }
 
+    /// The one place in the crate where the same bytes print two ways. Stated
+    /// here so the divergence is a documented property rather than something
+    /// a caller meets in production.
+    #[test]
+    fn a_txid_and_its_bare_hash_print_opposite_ways() {
+        let txid = Tx::from_hex(SEGWIT).unwrap().txid();
+        let hash = txid.to_hash();
+
+        assert_ne!(txid.to_string(), hash.to_string());
+        assert_eq!(txid.to_string(), hash.to_hex_reversed());
+        assert_eq!(hash.to_string(), hex::encode(&txid.to_wire()));
+        // …and the trip down and back is lossless.
+        assert_eq!(Txid::from_hash(hash), txid);
+    }
+
     #[test]
     fn txid_rejects_anything_that_is_not_32_bytes() {
         assert_eq!(
             "aabb".parse::<Txid>(),
-            Err(TxidParseError::WrongLength { got: 2 })
+            Err(HashParseError::WrongLength {
+                got: 2,
+                expected: 32
+            })
         );
         assert_eq!(
             "".parse::<Txid>(),
-            Err(TxidParseError::WrongLength { got: 0 })
+            Err(HashParseError::WrongLength {
+                got: 0,
+                expected: 32
+            })
         );
         // 33 bytes — one too many, the boundary a length check gets wrong.
         assert_eq!(
             "00".repeat(33).parse::<Txid>(),
-            Err(TxidParseError::WrongLength { got: 33 })
+            Err(HashParseError::WrongLength {
+                got: 33,
+                expected: 32
+            })
         );
         assert_eq!(
             "zz".repeat(32).parse::<Txid>(),
-            Err(TxidParseError::Hex(HexError::InvalidChar { offset: 0 }))
+            Err(HashParseError::Hex(HexError::InvalidChar { offset: 0 }))
         );
     }
 

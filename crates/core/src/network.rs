@@ -19,9 +19,13 @@ use crate::parse::name_table;
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[non_exhaustive]
 pub enum Network {
+    /// The real one.
     Mainnet,
+    /// testnet3, the long-running public test chain.
     Testnet,
+    /// A signed test chain with a controlled block producer.
     Signet,
+    /// A private chain where blocks are mined on demand.
     Regtest,
 }
 

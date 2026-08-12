@@ -23,13 +23,21 @@ use std::num::NonZeroUsize;
 pub enum ReadError {
     /// Ran off the end of the buffer.
     UnexpectedEnd {
+        /// Where the read started.
         offset: usize,
+        /// How many bytes it wanted.
         needed: usize,
+        /// How many were left.
         available: usize,
     },
     /// A length or count that cannot possibly fit in what is left. Rejected
     /// before allocating, so an 8-byte varint cannot ask for gigabytes.
-    ImplausibleCount { count: u64, remaining: usize },
+    ImplausibleCount {
+        /// The count the stream declared.
+        count: u64,
+        /// Bytes left, which the count could not fit in even at one byte each.
+        remaining: usize,
+    },
     /// A compact-size integer written in more bytes than it needs.
     ///
     /// Core's `ReadCompactSize` rejects these. Accepting them would mean
@@ -37,9 +45,13 @@ pub enum ReadError {
     /// library is worse than refusing: the caller would be shown a field they
     /// never sent.
     NonCanonicalVarint {
+        /// Where the varint started.
         offset: usize,
+        /// The value it encoded.
         value: u64,
+        /// Bytes it was written in.
         used: usize,
+        /// Bytes it needed — always fewer than `used`, or this is not an error.
         minimal: usize,
     },
 }
@@ -83,6 +95,7 @@ pub struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
+    /// Start reading at the front of `buf`.
     #[must_use]
     pub const fn new(buf: &'a [u8]) -> Self {
         Reader { buf, pos: 0 }
@@ -94,6 +107,7 @@ impl<'a> Reader<'a> {
         self.pos
     }
 
+    /// Bytes not yet consumed.
     #[must_use]
     pub const fn remaining(&self) -> usize {
         self.buf.len() - self.pos
@@ -111,6 +125,12 @@ impl<'a> Reader<'a> {
         self.buf.split_at(self.pos).1
     }
 
+    /// Consume exactly `n` bytes.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if fewer than `n` remain. A failed read
+    /// consumes nothing, so the cursor is still usable afterwards.
     pub fn take(&mut self, n: usize) -> Result<&'a [u8], ReadError> {
         let available = self.remaining();
         if n > available {
@@ -127,24 +147,48 @@ impl<'a> Reader<'a> {
 
     /// Read a fixed-size array. Exists so callers never write
     /// `take(N)?.try_into().unwrap()` — the length is proven by the type.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if fewer than `N` bytes remain.
     pub fn take_array<const N: usize>(&mut self) -> Result<[u8; N], ReadError> {
         let mut out = [0u8; N];
         out.copy_from_slice(self.take(N)?);
         Ok(out)
     }
 
+    /// Read one byte.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if too few bytes remain.
     pub fn u8(&mut self) -> Result<u8, ReadError> {
         Ok(self.take(1)?[0])
     }
 
+    /// Read a little-endian `u16`.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if too few bytes remain.
     pub fn u16(&mut self) -> Result<u16, ReadError> {
         Ok(u16::from_le_bytes(self.take_array()?))
     }
 
+    /// Read a little-endian `u32`.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if too few bytes remain.
     pub fn u32(&mut self) -> Result<u32, ReadError> {
         Ok(u32::from_le_bytes(self.take_array()?))
     }
 
+    /// Read a little-endian `u64`.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if too few bytes remain.
     pub fn u64(&mut self) -> Result<u64, ReadError> {
         Ok(u64::from_le_bytes(self.take_array()?))
     }
@@ -154,6 +198,11 @@ impl<'a> Reader<'a> {
     /// A value written in a wider prefix than it needs — `fd 01 00` for 1 —
     /// is rejected, matching Core's `ReadCompactSize`. Accepting it would let
     /// a decoder round-trip to different bytes than it was given.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::UnexpectedEnd`] if the stream is short, or
+    /// [`ReadError::NonCanonicalVarint`] if it is written too wide.
     pub fn varint(&mut self) -> Result<u64, ReadError> {
         let offset = self.pos;
         let (value, used) = match self.u8()? {
@@ -182,6 +231,10 @@ impl<'a> Reader<'a> {
     ///
     /// `min_each` is non-zero by type: a zero would make every count "fit",
     /// which is the one input that defeats the whole check.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadError::ImplausibleCount`] if the count cannot fit.
     pub fn checked_count(&self, count: u64, min_each: NonZeroUsize) -> Result<usize, ReadError> {
         let remaining = self.remaining();
         let fits = count
@@ -195,6 +248,10 @@ impl<'a> Reader<'a> {
 
     /// Read a varint length, check it against the buffer, then take that many
     /// bytes — the pattern behind every script and witness item.
+    ///
+    /// # Errors
+    ///
+    /// Any [`ReadError`] the three steps can produce.
     pub fn take_varint_slice(&mut self) -> Result<&'a [u8], ReadError> {
         let len = self.varint()?;
         let len = self.checked_count(len, NonZeroUsize::MIN)?;

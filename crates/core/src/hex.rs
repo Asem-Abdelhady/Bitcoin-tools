@@ -28,9 +28,15 @@ use std::fmt;
 #[non_exhaustive]
 pub enum HexError {
     /// Hex needs two characters per byte.
-    OddLength { len: usize },
-    /// Byte offset into the input string of the offending character.
-    InvalidChar { offset: usize },
+    OddLength {
+        /// The odd length that was given.
+        len: usize,
+    },
+    /// A character that is not a hex digit.
+    InvalidChar {
+        /// Byte offset into the input string of the offending character.
+        offset: usize,
+    },
 }
 
 impl fmt::Display for HexError {
@@ -60,6 +66,10 @@ pub fn encode(bytes: &[u8]) -> String {
 /// keys and address parts all render as hex, and each one hand-rolling
 /// `for b in .. { write!(f, "{b:02x}") }` is how a codec ends up defined in
 /// seven places.
+///
+/// # Errors
+///
+/// Whatever `f` returns — for a `String` sink, never.
 pub fn write(f: &mut impl fmt::Write, bytes: &[u8]) -> fmt::Result {
     for &b in bytes {
         write!(f, "{b:02x}")?;
@@ -73,6 +83,10 @@ pub fn write(f: &mut impl fmt::Write, bytes: &[u8]) -> fmt::Result {
 /// Txids, block hashes and merkle roots are computed and serialized in one
 /// order and shown to humans in the other. Naming the flip here means a new
 /// hash type states which one it wants, instead of remembering a `.rev()`.
+///
+/// # Errors
+///
+/// Whatever `f` returns — for a `String` sink, never.
 pub fn write_rev(f: &mut impl fmt::Write, bytes: &[u8]) -> fmt::Result {
     for &b in bytes.iter().rev() {
         write!(f, "{b:02x}")?;
@@ -107,6 +121,11 @@ const fn nibble(b: u8) -> Option<u8> {
 }
 
 /// Decode hex, accepting either case. Does not trim — see [`normalize`].
+///
+/// # Errors
+///
+/// [`HexError::OddLength`] if the input is not whole bytes, or
+/// [`HexError::InvalidChar`] with the offset of the first non-hex character.
 pub fn decode(s: &str) -> Result<Vec<u8>, HexError> {
     let raw = s.as_bytes();
     if !raw.len().is_multiple_of(2) {
@@ -136,6 +155,10 @@ pub fn decode(s: &str) -> Result<Vec<u8>, HexError> {
 /// a merkle root, the planned `Hash<N>`) wants the identical three lines.
 /// Byte order is a decision each of those types makes once; it should not be
 /// re-implemented once per type.
+///
+/// # Errors
+///
+/// The same as [`decode`], which does the scanning.
 pub fn decode_rev(s: &str) -> Result<Vec<u8>, HexError> {
     let mut bytes = decode(s)?;
     bytes.reverse();

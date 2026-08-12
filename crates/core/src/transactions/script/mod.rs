@@ -36,7 +36,10 @@ pub enum ScriptKind {
     OpReturn,
     /// A witness program of a version this build does not know about.
     /// Anyone-can-spend today; a future soft fork may give it meaning.
-    WitnessUnknown { version: u8 },
+    WitnessUnknown {
+        /// The witness version byte, 0–16.
+        version: u8,
+    },
     /// Valid bytes, but no standard template matches.
     NonStandard,
 }
@@ -76,28 +79,44 @@ impl serde::Serialize for ScriptKind {
 #[cfg_attr(feature = "serde", serde(untagged, rename_all_fields = "camelCase"))]
 #[non_exhaustive]
 pub enum ScriptFields {
+    /// The parts of a `<pubkey> OP_CHECKSIG` output.
     P2Pk {
+        /// The public key, hex, in whichever form the script carries.
         pubkey: String,
     },
+    /// The parts of a pay-to-public-key-hash output.
     P2Pkh {
+        /// `HASH160` of the public key, hex.
         pubkey_hash: String,
     },
+    /// The parts of a pay-to-script-hash output.
     P2Sh {
+        /// `HASH160` of the redeem script, hex.
         script_hash: String,
     },
+    /// The parts of a bare multisig output.
     P2Ms {
+        /// Signatures needed — the `m` of `m`-of-`n`.
         required: u32,
+        /// Keys listed — the `n`.
         total: u32,
+        /// The public keys, hex, in script order.
         pubkeys: Vec<String>,
     },
+    /// The parts of any witness program, known version or not.
     Witness {
+        /// 0 for P2WPKH and P2WSH, 1 for P2TR.
         witness_version: u8,
+        /// The program itself, hex — 20 bytes for P2WPKH, 32 for P2WSH and
+        /// P2TR.
         witness_program: String,
     },
+    /// The parts of a provably-unspendable data output.
     OpReturn {
         /// Each data push after `OP_RETURN`, in order.
         data: Vec<String>,
     },
+    /// No fields, because no template matched.
     NonStandard,
 }
 
@@ -108,7 +127,9 @@ pub struct Script(Vec<u8>);
 /// One decoded instruction, owned so it can outlive the script it came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnalyzedInstruction {
+    /// Byte offset of this instruction within the script.
     pub offset: usize,
+    /// The opcode byte, whatever it means in context.
     pub opcode: Opcode,
     /// Bytes pushed by this instruction, if it is a push.
     pub data: Option<Vec<u8>>,
@@ -120,12 +141,20 @@ pub struct AnalyzedInstruction {
 /// per input and output, and a future persistence layer can store one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptAnalysis {
+    /// The script as it came in, hex.
     pub hex: String,
+    /// Its length in bytes.
     pub size_bytes: usize,
+    /// Which standard template it matches, if any.
     pub kind: ScriptKind,
+    /// The template's named parts, or [`ScriptFields::NonStandard`].
     pub fields: ScriptFields,
+    /// Human-readable disassembly.
     pub asm: String,
+    /// True if an opcode removed from the language appears as an *opcode* —
+    /// bytes inside a data push do not count.
     pub has_disabled_opcode: bool,
+    /// Every instruction that decoded, with its offset.
     pub instructions: Vec<AnalyzedInstruction>,
     /// Set when the script is malformed; `instructions` then holds everything
     /// that decoded before the problem.
@@ -137,6 +166,8 @@ impl Script {
     /// Anything longer cannot appear on-chain.
     pub const MAX_SIZE: usize = 10_000;
 
+    /// Wrap raw script bytes.
+    #[must_use]
     pub fn new(bytes: Vec<u8>) -> Self {
         Script(bytes)
     }
@@ -144,28 +175,41 @@ impl Script {
     /// Decode from hex. Leading and trailing whitespace and one `0x` prefix
     /// are accepted, matching [`Tx::from_hex`](crate::transactions::tx::Tx::from_hex)
     /// — the two entry points must not disagree about what hex is.
+    ///
+    /// # Errors
+    ///
+    /// [`HexError`] if the input is not whole bytes of hex.
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
         hex::decode(hex::normalize(s)).map(Script)
     }
 
+    /// The raw bytes.
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
+    /// Length in bytes.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// True for a script of no bytes, which is what a native segwit input's
+    /// scriptSig is.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Decode into instructions. See [`Instructions`] for the error behaviour.
+    #[must_use]
     pub fn instructions(&self) -> Instructions<'_> {
         Instructions::new(&self.0)
     }
 
     /// Decode fully, keeping whatever decoded before any error.
+    #[must_use]
     pub fn disassemble(&self) -> (Vec<Step<'_>>, Option<DecodeError>) {
         let mut steps = Vec::new();
         for item in self.instructions() {
@@ -179,6 +223,7 @@ impl Script {
 
     /// Human-readable disassembly, e.g.
     /// `OP_DUP OP_HASH160 OP_PUSHBYTES_20 89ab… OP_EQUALVERIFY OP_CHECKSIG`.
+    #[must_use]
     pub fn to_asm(&self) -> String {
         let (steps, err) = self.disassemble();
         let mut parts: Vec<String> = steps.iter().map(|s| s.instruction.to_string()).collect();
@@ -194,6 +239,7 @@ impl Script {
     /// This walks instructions rather than raw bytes: a pushed 20-byte hash
     /// will routinely contain a byte like `0x95` (`OP_MUL`) without that byte
     /// ever being an opcode.
+    #[must_use]
     pub fn has_disabled_opcode(&self) -> bool {
         self.instructions().any(|step| {
             matches!(step, Ok(Step { instruction: Instruction::Op(op), .. })
@@ -202,6 +248,7 @@ impl Script {
     }
 
     /// Classify as an output script template.
+    #[must_use]
     pub fn kind(&self) -> ScriptKind {
         let b = &self.0;
 
@@ -240,6 +287,7 @@ impl Script {
     }
 
     /// Decode and classify in one pass, into an owned, transport-free value.
+    #[must_use]
     pub fn analyze(&self) -> ScriptAnalysis {
         let (steps, error) = self.disassemble();
         ScriptAnalysis {
@@ -265,6 +313,7 @@ impl Script {
     ///
     /// Every index used here is already guaranteed by [`Script::kind`], which
     /// checked the exact length and byte pattern before returning.
+    #[must_use]
     pub fn fields(&self) -> ScriptFields {
         let b = &self.0;
         match self.kind() {

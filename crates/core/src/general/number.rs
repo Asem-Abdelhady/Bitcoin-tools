@@ -110,16 +110,29 @@ pub enum ParseNumberError {
     /// Nothing was left after trimming and removing any base prefix. A number
     /// has no empty spelling — unlike a byte string, where `""` is the empty
     /// sequence and a perfectly good value.
-    Empty { base: Base },
+    Empty {
+        /// The base it was being read in.
+        base: Base,
+    },
     /// A character that is not a digit in this base.
     ///
     /// The offset is a byte offset into the *trimmed, prefix-stripped* string,
     /// matching how [`hex::HexError`] reports one.
-    InvalidDigit { offset: usize, base: Base },
+    InvalidDigit {
+        /// Byte offset into the trimmed, prefix-stripped string.
+        offset: usize,
+        /// The base it was being read in.
+        base: Base,
+    },
     /// More digits than [`Number::MAX_DIGITS`]. Parsing is quadratic, so this
     /// is a guard against a pasted megabyte, not a statement about how large a
     /// number may be.
-    TooManyDigits { digits: usize, max: usize },
+    TooManyDigits {
+        /// Digits supplied.
+        digits: usize,
+        /// The limit, [`Number::MAX_DIGITS`].
+        max: usize,
+    },
 }
 
 impl fmt::Display for ParseNumberError {
@@ -258,29 +271,15 @@ impl Number {
             });
         }
 
-        // Little-endian while accumulating, so a carry pushes onto the end
-        // instead of shifting the whole buffer, then reversed once at the end.
-        let radix = u16::from(base.radix());
-        let mut le: Vec<u8> = Vec::with_capacity(digits.len());
+        // Characters to digit values, then one shared multiply-accumulate.
+        let mut values = Vec::with_capacity(digits.len());
         for (offset, &c) in digits.as_bytes().iter().enumerate() {
             let Some(value) = digit_value(c, base) else {
                 return Err(ParseNumberError::InvalidDigit { offset, base });
             };
-            // Widest intermediate is 0xff * 16 + 15 = 4095, so u16 cannot
-            // overflow here for any radix this type supports.
-            let mut carry = u16::from(value);
-            for byte in &mut le {
-                let acc = u16::from(*byte) * radix + carry;
-                *byte = acc as u8;
-                carry = acc >> 8;
-            }
-            while carry > 0 {
-                le.push(carry as u8);
-                carry >>= 8;
-            }
+            values.push(value);
         }
-        le.reverse();
-        Ok(Number::from_minimal(le))
+        Ok(Number::from_digits(&values, base.radix()))
     }
 
     /// Take a big-endian byte array as a number, dropping leading zeros.
@@ -318,6 +317,81 @@ impl Number {
             });
         }
         Ok(Number::from_be_bytes(bytes))
+    }
+
+    /// Read a number from its digits in `radix`, most significant first.
+    ///
+    /// Digit *values*, not characters: `[1, 0]` in radix 16 is 16. Any digit
+    /// at or above `radix` is undefined rather than rejected — every caller
+    /// inside this crate produces digits from its own alphabet and has already
+    /// validated them, and returning a `Result` here would push an unreachable
+    /// error path into all of them.
+    ///
+    /// This is the multiply-accumulate half of the crate's bignum arithmetic,
+    /// shared so it exists once. [`Number::parse`] uses it for bases 2, 10 and
+    /// 16; [`base58`](crate::encoding::base58) uses it for 58.
+    ///
+    /// **Unbounded, and quadratic in the digit count.** Every caller imposes
+    /// its own cap before reaching here — `MAX_DIGITS` for `parse`, `MAX_LEN`
+    /// for base58 — because the sensible limit differs per format. A new
+    /// caller owes one.
+    pub(crate) fn from_digits(digits: &[u8], radix: u8) -> Self {
+        let radix = u16::from(radix);
+        // Little-endian while accumulating, so a carry pushes onto the end
+        // rather than shifting the buffer, then reversed once at the end.
+        let mut le: Vec<u8> = Vec::with_capacity(digits.len());
+        for &digit in digits {
+            // Widest intermediate is 0xff * 0xff + 0xfe = 65279, so `u16`
+            // cannot overflow for any radix a `u8` can express.
+            let mut carry = u16::from(digit);
+            for byte in &mut le {
+                let acc = u16::from(*byte) * radix + carry;
+                *byte = acc as u8;
+                carry = acc >> 8;
+            }
+            while carry > 0 {
+                le.push(carry as u8);
+                carry >>= 8;
+            }
+        }
+        le.reverse();
+        Number::from_minimal(le)
+    }
+
+    /// This number's digits in `radix`, most significant first, with no
+    /// leading zeros. `[0]` for zero, so the result is never empty.
+    ///
+    /// The repeated-division half of the shared arithmetic, and the inverse of
+    /// [`Number::from_digits`]. Quadratic in the width, like everything else
+    /// that walks the whole value once per digit — and unbounded, so a caller
+    /// that did not get its value through a checked door owes its own cap.
+    pub(crate) fn to_digits(&self, radix: u8) -> Vec<u8> {
+        let radix = u16::from(radix);
+        // Divide in place over one buffer, least significant digit out first.
+        // `start` walks past the leading zeros each pass leaves behind, so the
+        // working value shrinks and this terminates.
+        let mut work = self.be.clone();
+        let mut start = 0;
+        let mut digits = Vec::new();
+        while start < work.len() {
+            let mut remainder = 0u16;
+            for byte in &mut work[start..] {
+                // `remainder < radix <= 255`, so this peaks at 65279.
+                let acc = (remainder << 8) | u16::from(*byte);
+                *byte = (acc / radix) as u8;
+                remainder = acc % radix;
+            }
+            digits.push(remainder as u8);
+            while start < work.len() && work[start] == 0 {
+                start += 1;
+            }
+        }
+        if digits.is_empty() {
+            // Only reachable if `be` were empty, which the invariant forbids.
+            digits.push(0);
+        }
+        digits.reverse();
+        digits
     }
 
     /// Strip leading zeros, keeping one byte for zero itself.
@@ -405,30 +479,10 @@ impl Number {
     /// one way in that is not.
     #[must_use]
     pub fn to_decimal(&self) -> String {
-        // Repeated division by 10, least significant digit out first, in place
-        // over one buffer. `start` walks past the leading zeros each pass
-        // leaves behind, so the working value shrinks and this terminates.
-        let mut work = self.be.clone();
-        let mut start = 0;
-        let mut reversed = String::with_capacity(work.len() * 3);
-        while start < work.len() {
-            let mut remainder = 0u16;
-            for byte in &mut work[start..] {
-                // remainder < 10, so this is at most 0x9ff — no overflow.
-                let acc = (remainder << 8) | u16::from(*byte);
-                *byte = (acc / 10) as u8;
-                remainder = acc % 10;
-            }
-            reversed.push(char::from(b'0' + remainder as u8));
-            while start < work.len() && work[start] == 0 {
-                start += 1;
-            }
-        }
-        if reversed.is_empty() {
-            // Only reachable if `be` were empty, which the invariant forbids.
-            return "0".to_string();
-        }
-        reversed.chars().rev().collect()
+        self.to_digits(10)
+            .into_iter()
+            .map(|d| char::from(b'0' + d))
+            .collect()
     }
 
     /// Base 16, lowercase, no prefix, no leading zero digit.

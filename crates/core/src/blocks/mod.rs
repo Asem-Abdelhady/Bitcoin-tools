@@ -24,3 +24,14 @@
 //! are both `Hash<32>` with different meaning attached, the merkle algorithm
 //! does not care which it was handed, and the dependency points down to L1
 //! where it belongs.
+//!
+//! ## …but it must not *return* a bare `Hash<32>`
+//!
+//! Taking one is right; handing one back is a trap. A merkle root and a block
+//! hash are both displayed reversed, and `Hash<N>`'s `Display` is the forward
+//! one — byte order is a property of the meaning, not the width, so the
+//! generic deliberately does not decide it. `root()` therefore returns a
+//! `MerkleRoot`, and a header hashes to a `BlockHash`, each a newtype whose
+//! one-line `Display` states its convention, exactly as
+//! [`Txid`](crate::transactions::tx::Txid) does. Returning the bare type would
+//! print every block hash forwards and nothing would catch it.
