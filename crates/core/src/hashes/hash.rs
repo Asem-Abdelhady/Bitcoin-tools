@@ -60,15 +60,18 @@ impl From<HexError> for HashParseError {
 /// stores wire order and offers both renderings by name —
 /// [`Hash::to_hex`] and [`Hash::to_hex_reversed`], [`Hash::from_hex`] and
 /// [`Hash::from_hex_reversed`]. [`Display`](fmt::Display) is the forward one,
-/// because a type that wants the reversal has to say so:
-/// [`Txid`](crate::transactions::tx::Txid) is one line of `Display` over
-/// [`hex::write_rev`], and that line is the whole declaration of its
-/// convention.
+/// because a type that wants the reversal has to say so — and the saying is a
+/// `reversed_hash!` call (private to this crate), which is where
+/// [`Txid`](crate::transactions::tx::Txid),
+/// [`BlockHash`](crate::blocks::BlockHash) and
+/// [`MerkleRoot`](crate::blocks::MerkleRoot) each get their reversing
+/// `Display` and the `FromStr` that matches it. A hash type that is *not*
+/// displayed reversed simply does not make that call.
 ///
-/// What this type does supply is everything that is *not* the order — the
+/// What this type supplies is everything that is *not* the order — the
 /// storage, the width check, the hex codec, and the equality — so a new hash
-/// type is a newtype and a `Display`, rather than seventy lines that can each
-/// be got subtly wrong.
+/// type is a newtype over it rather than seventy lines that can each be got
+/// subtly wrong.
 ///
 /// ```
 /// use bitcoin_tools_core::hashes::{Hash, hash160};
@@ -195,6 +198,117 @@ impl<const N: usize> TryFrom<&[u8]> for Hash<N> {
         Hash::from_slice(bytes)
     }
 }
+
+/// Declare a thirty-two byte type that Bitcoin displays *reversed*.
+///
+/// [`struct@Hash`] deliberately does not decide byte order, so each semantic
+/// hash type states its own. Three of them state the same one — `Txid`,
+/// `BlockHash` and `MerkleRoot` are all wire order in, explorer order out —
+/// and writing that three times means three chances for one of them to
+/// disagree: a `Display` that forgets to reverse, or a `FromStr` that reverses
+/// when `Display` did not, so `value.to_string().parse()` stops being the
+/// identity. Neither mistake fails to compile, and neither is visible in a
+/// test that only round-trips bytes.
+///
+/// So the convention is written once, here, and each type is its type name and
+/// its doc comment. The types stay **distinct** — a `Txid` is not a
+/// `BlockHash` and the compiler enforces that — which is what a generic
+/// `Reversed<Hash<32>>` would have given away.
+///
+/// `$subject` names what the value is *about* and `$container` what it is
+/// serialized inside, purely so the generated documentation reads like prose
+/// rather than like a template.
+macro_rules! reversed_hash {
+    (
+        $(#[$meta:meta])*
+        $name:ident, subject: $subject:literal, in: $container:literal
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub struct $name($crate::hashes::Hash<32>);
+
+        impl $name {
+            #[doc = concat!("Wrap bytes as they appear inside a serialized ", $container, ".")]
+            #[must_use]
+            pub const fn from_wire(bytes: [u8; 32]) -> Self {
+                $name($crate::hashes::Hash::from_bytes(bytes))
+            }
+
+            #[doc = concat!("The bytes as they appear inside a serialized ", $container, ".")]
+            #[must_use]
+            pub const fn to_wire(self) -> [u8; 32] {
+                self.0.to_bytes()
+            }
+
+            #[doc = concat!(
+                "The underlying digest, for anything that is about thirty-two bytes \
+                 rather than about a ", $subject, " — a merkle tree, say."
+            )]
+            ///
+            /// **The value returned prints in wire order.**
+            /// [`Hash`](crate::hashes::Hash)'s `Display` is the forward one and
+            /// the reversal lives on this type alone, so `value.to_string()`
+            /// and `value.to_hash().to_string()` are the same bytes rendered
+            /// opposite ways. Reach for
+            /// [`Hash::to_hex_reversed`](crate::hashes::Hash::to_hex_reversed)
+            /// if you want the displayed form from a bare digest.
+            #[must_use]
+            pub const fn to_hash(self) -> $crate::hashes::Hash<32> {
+                self.0
+            }
+
+            #[doc = concat!("Take a digest as a ", $subject, ", in wire order.")]
+            ///
+            /// The inverse of `to_hash`, so a caller who went down to the
+            /// digest can come back without routing through raw bytes.
+            #[must_use]
+            pub const fn from_hash(hash: $crate::hashes::Hash<32>) -> Self {
+                $name(hash)
+            }
+        }
+
+        impl ::std::fmt::Display for $name {
+            /// Reversed — the order block explorers and RPC use.
+            ///
+            /// Streams through [`hex::write_rev`](crate::hex::write_rev)
+            /// rather than formatting a `String` and calling `Formatter::pad`,
+            /// which means width, fill and precision are ignored. That is the
+            /// same choice [`Hash`](crate::hashes::Hash) makes and it is
+            /// deliberate: `pad` would honour `{:.8}` by *truncating*, and
+            /// eight characters of a digest look exactly like a digest while
+            /// being a different value.
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                $crate::hex::write_rev(f, self.0.as_bytes())
+            }
+        }
+
+        impl ::std::str::FromStr for $name {
+            type Err = $crate::hashes::HashParseError;
+
+            /// Parses the **displayed** form, undoing the reversal that
+            /// `Display` applies, so `value.to_string().parse()` is the
+            /// identity.
+            ///
+            /// This closes a trap: hex-decoding a value an explorer showed
+            /// straight into `from_wire` yields a byte-reversed result that
+            /// nothing downstream can detect. Byte order is a decision this
+            /// type makes, not one it leaves to the caller.
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                $crate::hashes::Hash::from_hex_reversed(s).map($name)
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl ::serde::Serialize for $name {
+            /// The displayed form, matching `Display`.
+            fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                s.collect_str(self)
+            }
+        }
+    };
+}
+
+pub(crate) use reversed_hash;
 
 #[cfg(feature = "serde")]
 impl<const N: usize> serde::Serialize for Hash<N> {

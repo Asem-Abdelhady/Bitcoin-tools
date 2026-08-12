@@ -69,7 +69,8 @@ src/
 │   ├── sha256.rs         ✓ 2.3
 │   ├── hash256.rs        ✓ 2.1  double SHA-256
 │   ├── hash160.rs        ✓ 2.2  RIPEMD160(SHA256)
-│   ├── hash.rs           ✓ Hash<const N> — storage, width, hex, both orders
+│   ├── hash.rs           ✓ Hash<const N> — storage, width, hex, both orders,
+│   │                       and reversed_hash! for the types that display flipped
 │   ├── hmac.rs           ✓ HMAC-SHA512, PBKDF2 — for BIP32/39
 │   └── tagged.rs         ✓ BIP340 tagged hashes — for taproot
 ├── encoding/             ✓ shared codecs
@@ -94,9 +95,10 @@ src/
 │   ├── tx.rs             ✓ 5.2  Tx, Txid, TxBreakdown
 │   ├── builder.rs          5.1  TxBuilder
 │   └── script/           ✓ 5.3  Script, Opcode, Instruction
-└── blocks/                 § 6
-    ├── header.rs           6.2  BlockHeader; 6.1 BlockHash
-    └── merkle.rs           merkle root over Hash<32>
+└── blocks/               ✓ § 6
+    ├── header.rs         ✓ 6.2  BlockHeader, HeaderBreakdown; 6.1 BlockHash
+    ├── target.rs         ✓ 6.2  CompactTarget, Target, difficulty
+    └── merkle.rs         ✓      MerkleRoot over Hash<32>, and CVE-2012-2459
 ```
 
 `pack_bits`/`unpack_bits` are the fourth thing at L0 for the same reason as the
@@ -169,8 +171,23 @@ exposed as the feature described. **Planned** — not written.
 
 | | Feature | Status | Notes |
 |---|---|---|---|
-| 6.1 | Block Hash | Planned | HASH256 of the 80-byte header, both byte orders. |
-| 6.2 | Block Header | Planned | Hex → version, prev block, merkle root, time, bits, nonce. `bits` needs its own type; the raw `u32` is not the number anyone wants. |
+| 6.1 | Block Hash | **Done** | HASH256 of the 80 bytes, as a `BlockHash` whose `Display` is the reversed one — the same one-line convention `Txid` states. |
+| 6.2 | Block Header | **Done** | Hex → version, prev block, merkle root, time, bits, nonce, plus `HeaderBreakdown` for the byte layout. `bits` got its own type *and* its own file: `CompactTarget` expands to a `Target`, answers `difficulty()`, and `meets_target()` closes the loop by checking the header's own hash against it. Verified against ten mainnet blocks whose exponents cover `0x17`–`0x1d` without a gap, and against Core's `arith_uint256` cases for the negative, overflow and sub-3-exponent corners no real header reaches. |
+
+`merkle::root` is not a numbered feature but 6.2 is incomplete without it —
+a merkle root you cannot recompute is a hash you have to take on trust. It
+takes `Hash<32>` (see the layering note above) and comes in two forms:
+`root`, the consensus computation, and `root_checked`, which refuses a leaf
+list containing two identical siblings. That is CVE-2012-2459: duplicating the
+last hash of an odd row means `[a, b, c]` and `[a, b, c, c]` have the same
+root, so a root does not identify its list. Both belong here — validating a
+header needs the first, and deriving a root from leaves you were handed needs
+the second.
+
+Not here, deliberately: no `Block` type, and no consensus validation beyond
+`meets_target`. Retargeting, median-time-past and chain selection all need
+headers a single header does not carry, and a full block would mean `blocks`
+importing `transactions` sideways at L4.
 
 ### 7. Cryptography
 
@@ -229,9 +246,12 @@ of having it.
 - **Byte order belongs to the meaning, not the width.** A merkle root and a
   P2WSH commitment are both 32 bytes and only the first is shown reversed, so
   `Hash<N>` cannot decide this: it stores wire order, renders wire order, and
-  offers the reversal by name. A type whose convention *is* reversed says so in
-  its own one-line `Display` — `Txid` is the example. Write that line when you
-  add a hash type, and never let a caller print the wrong order by accident.
+  offers the reversal by name. A type whose convention *is* reversed declares
+  it, and since three types declare the same one — `Txid`, `BlockHash`,
+  `MerkleRoot` — the declaration is a `reversed_hash!` call in `hashes/hash.rs`
+  rather than six impls copied per type. Use it when you add a hash Bitcoin
+  displays flipped; write the impls yourself when it does not, and never let a
+  caller print the wrong order by accident.
 - **Hex is one codec.** `hex`. Do not hand-roll another.
 - **A named enum is spelled once.** `Network`, `Base`, `Denomination` and
   `Purpose` all name a small closed set, print one spelling, and read back
@@ -250,9 +270,9 @@ of having it.
 - **A published vector is the acceptance criterion, and the invalid half
   counts.** BIP32, BIP39, BIP173 and BIP350 each publish inputs that must be
   refused, and those are the vectors that actually test a decoder.
-- **A hash type is a newtype over `Hash<N>` plus a `Display`.** `Hash<N>`
-  carries the storage, the width check and the hex codec, so a new one is two
-  lines rather than seventy.
+- **A hash type is a newtype over `Hash<N>`.** `Hash<N>` carries the storage,
+  the width check and the hex codec; the byte-order bullet above says where the
+  `Display` comes from.
 - **No panics on public paths.** `unwrap`, `expect` and `panic!` are `warn` on
   the library target (see `lib.rs`) and allowed in tests, where a failed
   assertion is the point.
@@ -269,12 +289,18 @@ of having it.
 ## Tests
 
 Vectors live in the `bitcoin-tools-vectors` workspace crate, a dev-only member
-shared with the server so both assert against identical bytes. Official BIP32
-and BIP39 vectors go there as those features land.
+shared with the server so both assert against identical bytes.
 
 `tests/tx_vectors.rs` is the acceptance criteria for 5.2, `script_vectors.rs`
-for 5.3, and `hd_vectors.rs` for all of § 4 — each asserts against the vector
-files, never against a restated expectation.
+for 5.3, `hd_vectors.rs` for all of § 4, and `block_vectors.rs` for § 6 — each
+asserts against the vector files, never against a restated expectation.
+
+Where a BIP publishes vectors they are transcribed unchanged. Where it does not
+— § 6 has no vector file, because the chain itself is the vector — the data is
+real mainnet blocks, and it is chosen rather than sampled: ten headers whose
+`bits` exponents cover every width mainnet has used, and eight of them carrying
+their full transaction list so the merkle root can be recomputed rather than
+believed.
 
 `hd_vectors.rs` is worth reading for the shape: half of what it runs is
 BIP32's list of extended keys that must be **rejected**. A decoder that

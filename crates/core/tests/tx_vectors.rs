@@ -11,15 +11,8 @@
 
 use bitcoin_tools_core::general::reverse_hex;
 use bitcoin_tools_core::transactions::tx::{Tx, TxBreakdown};
-use bitcoin_tools_vectors::{legacy, segwit};
+use bitcoin_tools_vectors::{field, legacy, segwit};
 use serde_json::Value;
-
-/// `expected[key]` as a string, failing with the path when it is absent.
-fn field<'a>(expected: &'a Value, key: &str, at: &str) -> &'a str {
-    expected[key]
-        .as_str()
-        .unwrap_or_else(|| panic!("{at}: vector has no string field {key:?}"))
-}
 
 fn check(vector: &Value, at: &str) {
     let raw = field(vector, "rawTx", at);

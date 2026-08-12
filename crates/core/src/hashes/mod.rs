@@ -67,10 +67,16 @@
 //! meaning, not of the size.
 //!
 //! So [`struct@Hash`] stores wire order, offers both renderings by name, and makes
-//! `Display` the forward one. A type that reverses says so in its own
-//! `Display` — which is exactly one line in
-//! [`Txid`](crate::transactions::tx::Txid), and that line is the whole
-//! declaration of its convention rather than a behaviour inherited silently.
+//! `Display` the forward one. A type that reverses says so — and by § 6 three
+//! of them did, so *how* they say it is now written once: `hash.rs` carries a
+//! private `reversed_hash!` that declares the newtype, both constructors, both
+//! accessors, the reversing `Display`, the matching `FromStr` and the serde
+//! impl. [`Txid`](crate::transactions::tx::Txid),
+//! [`BlockHash`](crate::blocks::BlockHash) and
+//! [`MerkleRoot`](crate::blocks::MerkleRoot) are each now a doc comment and a
+//! name. The convention is still declared rather than inherited silently —
+//! the declaration is the macro call, and a hash type that does *not* reverse
+//! simply does not make it.
 //!
 //! It also settles a dependency that would otherwise go sideways: merkle roots
 //! live in [`blocks`](crate::blocks) and txids in

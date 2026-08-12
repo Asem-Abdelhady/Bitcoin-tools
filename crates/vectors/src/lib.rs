@@ -39,6 +39,16 @@ pub const BIP32_INVALID: &str = include_str!("../data/bip32_invalid.json");
 /// the keys and addresses each of them derives.
 pub const ACCOUNTS: &str = include_str!("../data/accounts.json");
 
+/// Mainnet block headers, with the hash, expanded target, difficulty and
+/// merkle root each one implies — and, for the smaller blocks, every txid the
+/// merkle root is built from.
+///
+/// Ten blocks chosen for their `bits`: genesis and its neighbours at
+/// difficulty 1, then seven more whose exponents walk the compact encoding
+/// down from `0x1d` to `0x17` without a gap, so the expansion is exercised at
+/// every width mainnet has used.
+pub const BLOCKS: &str = include_str!("../data/blocks.json");
+
 /// Parse one of the raw JSON constants into its array of vectors.
 ///
 /// # Panics
@@ -50,6 +60,38 @@ pub fn parse(raw: &str) -> Vec<Value> {
     match serde_json::from_str(raw) {
         Ok(Value::Array(v)) => v,
         other => panic!("vector file is not a JSON array: {other:?}"),
+    }
+}
+
+/// A string field a vector is required to carry.
+///
+/// `at` names the vector for the failure message — `"bip39[3]"`,
+/// `"block 100000"` — since a suite that loops over a file needs to say which
+/// entry was wrong.
+///
+/// # Panics
+///
+/// If the field is absent or not a string. That is a defect in the vector
+/// file, which is compiled in, so it is a build-time mistake surfacing at test
+/// time rather than anything a caller can trigger.
+#[must_use]
+pub fn field<'a>(vector: &'a Value, name: &str, at: &str) -> &'a str {
+    match vector[name].as_str() {
+        Some(s) => s,
+        None => panic!("{at} has no {name}"),
+    }
+}
+
+/// A numeric field a vector is required to carry.
+///
+/// # Panics
+///
+/// If the field is absent or not a non-negative integer. See [`field`].
+#[must_use]
+pub fn number(vector: &Value, name: &str, at: &str) -> u64 {
+    match vector[name].as_u64() {
+        Some(n) => n,
+        None => panic!("{at} has no {name}"),
     }
 }
 
@@ -87,6 +129,12 @@ pub fn bip32_invalid() -> Vec<Value> {
 #[must_use]
 pub fn accounts() -> Vec<Value> {
     parse(ACCOUNTS)
+}
+
+/// [`BLOCKS`], parsed.
+#[must_use]
+pub fn blocks() -> Vec<Value> {
+    parse(BLOCKS)
 }
 
 #[cfg(test)]
@@ -142,6 +190,39 @@ mod tests {
                 assert!(address["address"].is_string());
             }
         }
+    }
+
+    /// Same reasoning as the HD files: a field missing from the transcription
+    /// would make a test in `core` pass by skipping the case it was written
+    /// for.
+    #[test]
+    fn the_block_vectors_are_whole() {
+        let blocks = blocks();
+        assert_eq!(blocks.len(), 10);
+        for (i, b) in blocks.iter().enumerate() {
+            for field in ["hash", "header", "prevBlock", "merkleRoot", "target"] {
+                assert!(b[field].is_string(), "blocks[{i}] has no {field}");
+            }
+            for field in ["height", "version", "time", "bits", "nonce", "txCount"] {
+                assert!(b[field].is_u64(), "blocks[{i}] has no {field}");
+            }
+            assert!(b["difficulty"].is_f64(), "blocks[{i}] has no difficulty");
+            let header = b["header"].as_str().unwrap_or_default();
+            assert_eq!(header.len(), 160, "blocks[{i}] is not eighty bytes");
+
+            // The txid list is optional — the two largest blocks carry
+            // thousands — but where it exists it has to be the whole block, or
+            // the merkle root it is checked against is not this block's.
+            if let Some(txids) = b["txids"].as_array() {
+                assert_eq!(
+                    txids.len() as u64,
+                    b["txCount"].as_u64().unwrap_or_default(),
+                    "blocks[{i}] lists some but not all of its txids"
+                );
+            }
+        }
+        let with_txids = blocks.iter().filter(|b| b["txids"].is_array()).count();
+        assert_eq!(with_txids, 8, "eight blocks carry their transaction list");
     }
 
     #[test]
