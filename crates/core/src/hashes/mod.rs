@@ -7,12 +7,6 @@
 //! [`hd`](crate::hd) needs HMAC-SHA512 and PBKDF2. It sits directly above
 //! [`bytes`](crate::bytes) and below everything else.
 //!
-//! ## Planned
-//!
-//! | File | Feature |
-//! |---|---|
-//! | `hmac.rs` | HMAC-SHA512 and PBKDF2, for BIP32 and BIP39 |
-//!
 //! ## Done
 //!
 //! | File | Feature |
@@ -20,6 +14,8 @@
 //! | `sha256.rs` | 2.3 SHA-256 |
 //! | `hash256.rs` | 2.1 HASH256 — double SHA-256 |
 //! | `hash160.rs` | 2.2 HASH160 — RIPEMD-160 of SHA-256 |
+//! | `hmac.rs` | HMAC-SHA512 and PBKDF2, for BIP32 and BIP39 |
+//! | `tagged.rs` | BIP340 tagged hashes, for taproot |
 //! | `hash.rs` | `Hash<const N>` — storage, width, hex, and both byte orders |
 //!
 //! The three numbered features are complete. Each is one function in one file,
@@ -31,6 +27,13 @@
 //! way: a caller who wants the raw digest — a Base58 checksum takes the first
 //! four bytes of one — should not have to unwrap a newtype to get it.
 //! [`struct@Hash`] is what a *semantic* hash type is built from.
+//!
+//! `hmac.rs` and `tagged.rs` are the two that are not features in their own
+//! right. They are here because they are *hashes used by something above*:
+//! BIP32 defines every derivation step as an HMAC-SHA512 and BIP39 a seed as
+//! PBKDF2 over one, while taproot's tweak is a BIP340 tagged hash. Putting
+//! them at L1 is what stops [`hd`](crate::hd) at L4 from growing its own
+//! copies, and stops the taproot tweak from having to reach sideways.
 //!
 //! ## Only the compositions Bitcoin names are exposed
 //!
@@ -89,15 +92,21 @@
 // once as a function — which is the trap `transactions/mod.rs` documents, and
 // it already cost this module disambiguating `super::sha256()` links. Opening
 // one of these later is additive; closing it after publication would not be.
-// `hmac.rs` may earn a `pub mod` when it lands, since it brings types.
-// `hash` is `pub mod` where the three digest files are not: it carries a type
+// `hmac.rs` was flagged here as a candidate for `pub mod` "since it brings
+// types". It landed carrying two functions and a size constant and no types at
+// all, so it stayed private like the rest.
+// `hash` is `pub mod` where the digest files are not: it carries a type
 // with its own methods and error, not one function.
 pub mod hash;
 mod hash160;
 mod hash256;
+mod hmac;
 mod sha256;
+mod tagged;
 
 pub use hash::{Hash, HashParseError};
 pub use hash160::hash160;
 pub use hash256::hash256;
+pub use hmac::{SHA512_SIZE, hmac_sha512, pbkdf2_hmac_sha512};
 pub use sha256::sha256;
+pub use tagged::tagged_sha256;

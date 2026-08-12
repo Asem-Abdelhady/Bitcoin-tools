@@ -3,14 +3,29 @@
 //! Private to the crate and not part of its public API — it generates public
 //! items, but nothing here is reachable from outside.
 //!
+//! Two shapes. The full one gives `as_str`, `Display`, `FromStr` and an
+//! `Unknown…` error; the `spelling` one gives the first two and the serde
+//! `Serialize` that follows from them, for an enum that is written but never
+//! read from text.
+//!
 //! Three types wanted the identical forty lines: [`Network`](crate::network),
 //! [`Base`](crate::general::Base) and
 //! [`Denomination`](crate::general::Denomination) each name a small closed set
 //! of choices, each spell one of those names in `as_str` and `Display`, each
 //! read one back in `FromStr` accepting aliases case-insensitively, and each
-//! carry an `Unknown…` error holding the string that failed. Two more are
-//! queued behind them (`AddressType` in 3.2, the BIP44 purpose in 4.2), which
-//! is why this stopped at the third copy rather than the fifth.
+//! carry an `Unknown…` error holding the string that failed. This stopped at
+//! the third copy rather than the fifth because two more were already queued:
+//! [`Purpose`](crate::hd::Purpose) landed on it in 4.2 and is the fourth.
+//!
+//! The fifth, an address-type enum, wanted only half of it. `AddressKind`
+//! names five output types but nothing parses one from text — an address is
+//! read from the address, not from someone naming its type — so it takes the
+//! `spelling` form below, which stops at `as_str`, `Display` and the serde
+//! `Serialize` that follows from them. `Base58Kind` and
+//! [`Variant`](crate::encoding::bech32::Variant) are the same. That arm exists
+//! because the alternative was a canonical name living only inside
+//! `#[serde(rename_all)]`: invisible with `serde` off, and duplicated with it
+//! on.
 //!
 //! The generated error types stay distinct — `UnknownNetwork` is not
 //! `UnknownBase` — so a caller can still write `impl From<UnknownNetwork>` for
@@ -98,6 +113,46 @@ macro_rules! name_table {
                     }
                 )*
                 Err($error(trimmed.to_owned()))
+            }
+        }
+    };
+
+    // Spelling only: `as_str` and `Display`, no `FromStr` and no error type.
+    //
+    // For an enum that is *written* but never read from text.
+    // [`AddressKind`](crate::keys::AddressKind) is the case: it names five
+    // output types, but nothing parses one — an address is read from the
+    // address, not from someone naming its type. Without this arm such an
+    // enum has its canonical spelling only inside `#[serde(rename_all)]`,
+    // which means it has no spelling at all with `serde` off, and two copies
+    // of one with it on.
+    (
+        spelling $enum:ident {
+            $( $variant:ident => $spelling:literal; )*
+        }
+    ) => {
+        impl $enum {
+            #[doc = concat!("The name used on the wire and in this type's `Display`.")]
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $( $enum::$variant => $spelling, )*
+                }
+            }
+        }
+
+        impl ::std::fmt::Display for $enum {
+            /// Honours width and alignment, so these line up in a column.
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.pad(self.as_str())
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl ::serde::Serialize for $enum {
+            /// The same spelling `Display` gives, so there is only one.
+            fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                s.collect_str(self)
             }
         }
     };

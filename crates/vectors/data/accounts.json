@@ -1,0 +1,88 @@
+[
+  {
+    "bip": 49,
+    "network": "testnet",
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "passphrase": "",
+    "accountPath": "m/49'/1'/0'",
+    "addresses": [
+      {
+        "path": "m/49'/1'/0'/0/0",
+        "wif": "cULrpoZGXiuC19Uhvykx7NugygA3k86b3hmdCeyvHYQZSxojGyXJ",
+        "privateKey": "c9bdb49cfbaedca21c4b1f3a7803c34636b1d7dc55a717132443fc3f4c5867e8",
+        "publicKey": "03a1af804ac108a8a51782198c2d034b28bf90c8803f5a53f76276fa69a4eae77f",
+        "pubkeyHash": "38971f73930f6c141d977ac4fd4a727c854935b3",
+        "redeemScript": "001438971f73930f6c141d977ac4fd4a727c854935b3",
+        "scriptHash": "336caa13e08b96080a32b5d818d59b4ab3b36742",
+        "address": "2Mww8dCYPUpKHofjgcXcBCEGmniw9CoaiD2"
+      }
+    ]
+  },
+  {
+    "bip": 84,
+    "network": "mainnet",
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "passphrase": "",
+    "accountPath": "m/84'/0'/0'",
+    "addresses": [
+      {
+        "path": "m/84'/0'/0'/0/0",
+        "wif": "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
+        "publicKey": "0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c",
+        "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"
+      },
+      {
+        "path": "m/84'/0'/0'/0/1",
+        "wif": "Kxpf5b8p3qX56DKEe5NqWbNUP9MnqoRFzZwHRtsFqhzuvUJsYZCy",
+        "publicKey": "03e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea77",
+        "address": "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g"
+      },
+      {
+        "path": "m/84'/0'/0'/1/0",
+        "wif": "KxuoxufJL5csa1Wieb2kp29VNdn92Us8CoaUG3aGtPtcF3AzeXvF",
+        "publicKey": "03025324888e429ab8e3dbaf1f7802648b9cd01e9b418485c5fa4c1b9b5700e1a6",
+        "address": "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el"
+      }
+    ]
+  },
+  {
+    "bip": 86,
+    "network": "mainnet",
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "passphrase": "",
+    "rootXprv": "xprv9s21ZrQH143K3GJpoapnV8SFfukcVBSfeCficPSGfubmSFDxo1kuHnLisriDvSnRRuL2Qrg5ggqHKNVpxR86QEC8w35uxmGoggxtQTPvfUu",
+    "rootXpub": "xpub661MyMwAqRbcFkPHucMnrGNzDwb6teAX1RbKQmqtEF8kK3Z7LZ59qafCjB9eCRLiTVG3uxBxgKvRgbubRhqSKXnGGb1aoaqLrpMBDrVxga8",
+    "accountPath": "m/86'/0'/0'",
+    "accountXprv": "xprv9xgqHN7yz9MwCkxsBPN5qetuNdQSUttZNKw1dcYTV4mkaAFiBVGQziHs3NRSWMkCzvgjEe3n9xV8oYywvM8at9yRqyaZVz6TYYhX98VjsUk",
+    "accountXpub": "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoGVky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ",
+    "addresses": [
+      {
+        "path": "m/86'/0'/0'/0/0",
+        "xprv": "xprvA449goEeU9okwCzzZaxiy475EQGQzBkc65su82nXEvcwzfSskb2hAt2WymrjyRL6kpbVTGL3cKtp9herYXSjjQ1j4stsXXiRF7kXkCacK3T",
+        "xpub": "xpub6H3W6JmYJXN49h5TfcVjLC3onS6uPeUTTJoVvRC8oG9vsTn2J8LwigLzq5tHbrwAzH9DGo6ThGUdWsqce8dGfwHVBxSbixjDADGGdzF7t2B",
+        "internalKey": "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115",
+        "outputKey": "a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c",
+        "scriptPubkey": "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      },
+      {
+        "path": "m/86'/0'/0'/0/1",
+        "xprv": "xprvA449goEeU9okyiF1LmKiDaTgeXvmh87DVyRd35VPbsSop8n8uALpbtrUhUXByPFKK7C2yuqrB1FrhiDkEMC4RGmA5KTwsE1aB5jRu9zHsuQ",
+        "xpub": "xpub6H3W6JmYJXN4CCKUSnriaiQRCZmG6aq4sCMDqTu1ACyngw7HShf59hAxYjXgKDuuHThVEUzdHrc3aXCr9kfvQvZPit5dnD3K9xVRBzjK3rX",
+        "internalKey": "83dfe85a3151d2517290da461fe2815591ef69f2b18a2ce63f01697a8b313145",
+        "outputKey": "a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb",
+        "scriptPubkey": "5120a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb",
+        "address": "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh"
+      },
+      {
+        "path": "m/86'/0'/0'/1/0",
+        "xprv": "xprvA3Ln3Gt3aphvUgzgEDT8vE2cYqb4PjFfpmbiFKphxLg1FjXQpkAk5M1ZKDY15bmCAHA35jTiawbFuwGtbDZogKF1WfjwxML4gK7WfYW5JRP",
+        "xpub": "xpub6GL8SnQwRCGDhB59LEz9HMyM6sRYoByXBzXK3iEKWgCz8XrZNHUzd9L3AUBELW5NzA7dEFvMas1F84TuPH3xqdUA5tumaGWFgihJzWytXe3",
+        "internalKey": "399f1b2f4393f29a18c937859c5dd8a77350103157eb880f02e8c08214277cef",
+        "outputKey": "882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc",
+        "scriptPubkey": "5120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc",
+        "address": "bc1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wqwruhk7"
+      }
+    ]
+  }
+]

@@ -6,7 +6,8 @@
 //! |---|---|
 //! | `private.rs` | 3.1 Private Key — the key as binary/decimal/hex, plus WIF |
 //! | `public.rs` | 3.2 Public Key — (x, y), compressed `02`/`03`, uncompressed `04`, x-only |
-//! | `address.rs` | 3.2 Addresses — P2PKH and P2SH per [`Network`](crate::network), split into prefix, hash, and checksum |
+//! | `address/base58.rs` | 3.2 P2PKH and P2SH, split into prefix, hash, and checksum |
+//! | `address/segwit.rs` | 3.2 P2WPKH, P2WSH, P2TR and later versions, split into prefix, version, program and checksum |
 //!
 //! A private key is rejected if it is zero or at or above the secp256k1 group
 //! order; both are outside the valid scalar range and neither is caught by "is
@@ -24,35 +25,36 @@
 //! module that loses money rather than returning an error. WIF records the
 //! same flag, in the trailing `0x01` byte, for the same reason.
 //!
-//! ## One known break is owed before this crate is published
+//! Segwit does not carry the flag, because it does not have the choice:
+//! BIP143 requires a compressed key, and an uncompressed one in a witness is
+//! simply invalid. [`PublicKey::p2wpkh_address`] therefore refuses an
+//! uncompressed key rather than quietly compressing it — quietly compressing
+//! would hand back an address for a key the caller does not think they have.
 //!
-//! Recorded rather than discovered later, and cheap now and expensive after a
-//! version number exists.
+//! ## The recorded break is paid
 //!
-//! **`Address` becomes an enum.** It is a struct holding a 20-byte hash and
-//! a version byte, which is exactly what a Base58 address is and nothing like
-//! what a witness address is: a 32-byte P2WSH or P2TR program does not fit,
-//! and [`AddressKind::version`] has no answer for a bech32 kind. When
-//! `encoding/bech32.rs` lands, this becomes an enum over a Base58 arm and a
-//! segwit arm, and `version()`/`hash()` move onto the Base58 arm.
-//! [`AddressKind`] and [`AddressParts`] are `#[non_exhaustive]` so the variant
-//! and field additions are not themselves breaking.
+//! This section used to record two debts. Both are now discharged.
 //!
-//! The other debt this section used to carry — `Hash<20>` — is paid:
-//! [`AddressHash`] is [`Hash<20>`](crate::hashes::Hash), and the three
-//! signatures that were pinned to a bare `[u8; 20]` now name it.
+//! **`Address` became an enum**, with `encoding/bech32.rs`. It was a struct
+//! holding a 20-byte hash and a version byte, which is exactly a Base58
+//! address and nothing like a witness one; it is now
+//! [`Address::Base58`] and [`Address::Segwit`], `version()`/`hash()` live on
+//! [`Base58Address`] where they are always true, and the old `AddressKind`
+//! split into [`Base58Kind`] — the version-byte table — and [`AddressKind`],
+//! which names all five output types and returns `None` for a witness version
+//! nobody has defined yet.
 //!
-//! ## Only Base58 addresses live here
-//!
-//! P2PKH and P2SH are Base58Check and are done. The witness types — P2WPKH,
-//! P2WSH, P2TR — are Bech32 and land with `encoding/bech32.rs`; their scripts
-//! are already classified by [`ScriptKind`](crate::transactions::ScriptKind),
-//! so what is missing is the address text, not the understanding.
+//! **`Hash<20>`** replaced the bare `[u8; 20]`: [`AddressHash`] is
+//! [`Hash<20>`](crate::hashes::Hash), and every signature that was pinned to
+//! an array now names it.
 
 pub mod address;
 pub mod private;
 pub mod public;
 
-pub use address::{Address, AddressError, AddressHash, AddressKind, AddressParts};
+pub use address::{
+    Address, AddressError, AddressHash, AddressKind, Base58Address, Base58Kind, Base58Parts,
+    SegwitAddress, SegwitParts, WitnessVersion,
+};
 pub use private::{PrivateKey, PrivateKeyError};
 pub use public::{PublicKey, PublicKeyError};

@@ -3,11 +3,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::crypto::secp::{COMPRESSED_SIZE, Point, PointError, SCALAR_SIZE, UNCOMPRESSED_SIZE};
-use crate::hashes::hash160;
+use crate::crypto::secp::{
+    COMPRESSED_SIZE, Point, PointError, SCALAR_SIZE, TweakError, UNCOMPRESSED_SIZE,
+};
+use crate::hashes::{hash160, tagged_sha256};
 use crate::hex::{self, HexError};
-use crate::keys::address::Address;
-use crate::keys::address::AddressHash;
+use crate::keys::address::{Address, AddressHash};
 use crate::network::Network;
 
 /// A point on the curve, together with how it is being serialized.
@@ -31,6 +32,13 @@ pub enum PublicKeyError {
     Hex(HexError),
     /// Not a point on the curve — see [`PointError`].
     Point(PointError),
+    /// An operation that requires a compressed key was asked of an
+    /// uncompressed one. Every segwit output type does: BIP143 makes an
+    /// uncompressed key in a v0 witness invalid, and taproot keys are x-only.
+    Uncompressed,
+    /// A curve tweak failed — see [`TweakError`]. Unreachable in practice;
+    /// present because it is not unreachable by construction.
+    Tweak(TweakError),
 }
 
 impl fmt::Display for PublicKeyError {
@@ -38,6 +46,10 @@ impl fmt::Display for PublicKeyError {
         match self {
             PublicKeyError::Hex(e) => write!(f, "{e}"),
             PublicKeyError::Point(e) => write!(f, "{e}"),
+            PublicKeyError::Uncompressed => {
+                f.write_str("this address type requires a compressed public key")
+            }
+            PublicKeyError::Tweak(e) => write!(f, "{e}"),
         }
     }
 }
@@ -47,6 +59,8 @@ impl std::error::Error for PublicKeyError {
         match self {
             PublicKeyError::Hex(e) => Some(e),
             PublicKeyError::Point(e) => Some(e),
+            PublicKeyError::Tweak(e) => Some(e),
+            PublicKeyError::Uncompressed => None,
         }
     }
 }
@@ -60,6 +74,12 @@ impl From<HexError> for PublicKeyError {
 impl From<PointError> for PublicKeyError {
     fn from(e: PointError) -> Self {
         PublicKeyError::Point(e)
+    }
+}
+
+impl From<TweakError> for PublicKeyError {
+    fn from(e: TweakError) -> Self {
+        PublicKeyError::Tweak(e)
     }
 }
 
@@ -170,6 +190,90 @@ impl PublicKey {
     #[must_use]
     pub fn p2pkh_address(&self, network: Network) -> Address {
         Address::p2pkh(self.pubkey_hash(), network)
+    }
+
+    /// The native segwit v0 address — BIP84's output type.
+    ///
+    /// # Errors
+    ///
+    /// [`PublicKeyError::Uncompressed`] for an uncompressed key. BIP143 makes
+    /// an uncompressed key in a v0 witness invalid outright, so there is no
+    /// such address to return; compressing it silently would hand back an
+    /// address for a key the caller does not think they have, and a different
+    /// one from the P2PKH address the same value produces.
+    pub fn p2wpkh_address(&self, network: Network) -> Result<Address, PublicKeyError> {
+        if !self.compressed {
+            return Err(PublicKeyError::Uncompressed);
+        }
+        Ok(Address::p2wpkh(self.pubkey_hash(), network))
+    }
+
+    /// The redeem script BIP49 wraps in P2SH: `OP_0 <20-byte pubkey hash>`.
+    ///
+    /// Exposed rather than kept inside [`PublicKey::p2sh_p2wpkh_address`]
+    /// because it is what the spending input's `scriptSig` has to push, and a
+    /// tool showing a BIP49 account should be able to show it.
+    ///
+    /// # Errors
+    ///
+    /// [`PublicKeyError::Uncompressed`], as for
+    /// [`PublicKey::p2wpkh_address`] — a nested witness program is still a
+    /// witness program.
+    pub fn p2wpkh_redeem_script(&self) -> Result<Vec<u8>, PublicKeyError> {
+        if !self.compressed {
+            return Err(PublicKeyError::Uncompressed);
+        }
+        let mut script = vec![0x00, 0x14];
+        script.extend_from_slice(self.pubkey_hash().as_bytes());
+        Ok(script)
+    }
+
+    /// The P2SH-wrapped segwit address — BIP49's output type.
+    ///
+    /// From outside it is an ordinary P2SH address starting with `3`: the
+    /// witness program is the *redeem script*, so what the output commits to
+    /// is `HASH160` of that script rather than of the key.
+    ///
+    /// # Errors
+    ///
+    /// [`PublicKeyError::Uncompressed`].
+    pub fn p2sh_p2wpkh_address(&self, network: Network) -> Result<Address, PublicKeyError> {
+        let redeem = self.p2wpkh_redeem_script()?;
+        Ok(Address::p2sh(
+            AddressHash::from_bytes(hash160(&redeem)),
+            network,
+        ))
+    }
+
+    /// The taproot output key for this key used as an internal key with no
+    /// script tree — BIP86's rule.
+    ///
+    /// `Q = P + int(tagged_hash("TapTweak", x(P))) * G`. The tweak is not
+    /// decoration: an output that committed to `P` directly would be spendable
+    /// by anyone who could produce a script path, and the tweak with an empty
+    /// tree is what proves there is no script path.
+    ///
+    /// The internal key is *not* the output key, and neither is the address.
+    /// Three different 32-byte values that all look alike is exactly why this
+    /// is named after what it returns.
+    ///
+    /// # Errors
+    ///
+    /// [`PublicKeyError::Tweak`] if the tweak is not a scalar or the result is
+    /// not a point — each around 2⁻¹²⁷, and neither reachable by any input a
+    /// test could supply.
+    pub fn taproot_output_key(&self) -> Result<[u8; SCALAR_SIZE], PublicKeyError> {
+        let tweak = tagged_sha256("TapTweak", &self.to_x_only());
+        Ok(self.point.add_tweak_x_only(&tweak)?)
+    }
+
+    /// The taproot address for this key as a BIP86 internal key.
+    ///
+    /// # Errors
+    ///
+    /// [`PublicKeyError::Tweak`] — see [`PublicKey::taproot_output_key`].
+    pub fn p2tr_address(&self, network: Network) -> Result<Address, PublicKeyError> {
+        Ok(Address::p2tr(self.taproot_output_key()?, network))
     }
 }
 
