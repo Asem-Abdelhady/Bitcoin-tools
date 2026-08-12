@@ -20,7 +20,9 @@ bitcoin-tools-vectors = { path = "crates/vectors" }
 
 axum = "0.8.9"
 serde = { version = "1.0.229", features = ["derive"] }
+rand = "0.9.2"
 ripemd = "0.2.0"
+secp256k1 = "0.31.1"
 serde_json = "1.0.151"
 sha2 = "0.11.0"
 tokio = { version = "1.53.1", features = ["full"] }

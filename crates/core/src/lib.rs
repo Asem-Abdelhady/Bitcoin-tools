@@ -31,6 +31,7 @@
 // lints live here rather than in Cargo's `[lints]` so they cover the library
 // only — an assertion in a test *should* panic, that is what it is for.
 #![warn(missing_debug_implementations)]
+#![warn(missing_docs)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 // `clippy::indexing_slicing` is deliberately *not* enabled. Every index in
@@ -39,12 +40,10 @@
 // each one and make the script template matcher markedly harder to read.
 // `bytes::Reader` is the answer for anything walking untrusted input.
 //
-// `missing_docs` is *not on yet*, and should be before this crate is
-// published. Turning it on today reports ~138 public items — overwhelmingly
-// error-variant fields in `bytes`, `hex`, `network`, `transactions::tx` and
-// `transactions::script` — and that sweep is its own change rather than a
-// rider on whichever feature happens to be in flight. `general` and `hashes`
-// already pass it. This is the next piece of work, not a someday.
+// `missing_docs` is on, and every public item in the crate carries a doc
+// comment under all three feature combinations (default, `--no-default-features`,
+// `--features rand`). It went on once the sweep was done rather than before,
+// because a lint nobody can satisfy gets `#[allow]`ed rather than fixed.
 
 // Internal, and outside the layering: a macro, not a dependency. It generates
 // the `as_str`/`Display`/`FromStr`/`Unknown…` set that every small named enum

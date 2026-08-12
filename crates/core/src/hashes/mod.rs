@@ -11,13 +11,7 @@
 //!
 //! | File | Feature |
 //! |---|---|
-//! | `hash.rs` | `Hash<const N>` newtype: `Display`, `FromStr`, explicit byte order |
 //! | `hmac.rs` | HMAC-SHA512 and PBKDF2, for BIP32 and BIP39 |
-//!
-//! `Hash<N>` gets its own file rather than landing in `mod.rs`: it is a type
-//! with `Display`, `FromStr`, byte-order-naming constructors and a parse
-//! error, which is more code than the three functions combined, and `mod.rs`
-//! holding wiring and prose is the only thing stopping it becoming a grab bag.
 //!
 //! ## Done
 //!
@@ -26,15 +20,17 @@
 //! | `sha256.rs` | 2.3 SHA-256 |
 //! | `hash256.rs` | 2.1 HASH256 — double SHA-256 |
 //! | `hash160.rs` | 2.2 HASH160 — RIPEMD-160 of SHA-256 |
+//! | `hash.rs` | `Hash<const N>` — storage, width, hex, and both byte orders |
 //!
 //! The three numbered features are complete. Each is one function in one file,
 //! because each is one composition and there is nothing else to say about it;
 //! what is worth saying — which order the rounds go in, which byte order comes
 //! out, which script type uses which — lives on the function.
 //!
-//! These return `[u8; N]` for now. `Hash<const N>` will wrap them, adding the
-//! byte-order-aware `Display` and `FromStr`; the functions stay, because a
-//! caller who wants the raw digest should not have to unwrap a newtype.
+//! The three functions return `[u8; N]` rather than [`struct@Hash`], and stay that
+//! way: a caller who wants the raw digest — a Base58 checksum takes the first
+//! four bytes of one — should not have to unwrap a newtype to get it.
+//! [`struct@Hash`] is what a *semantic* hash type is built from.
 //!
 //! ## Only the compositions Bitcoin names are exposed
 //!
@@ -54,30 +50,39 @@
 //! ## `Hash<N>` is what keeps L4 from importing sideways
 //!
 //! `Txid`, `BlockHash` and a merkle root are the same 32 bytes with different
-//! meaning attached, and `Hash160` is 20. One generic newtype at L1 gives all
-//! of them `Display` (reversed, Bitcoin's convention), `FromStr` that undoes
-//! the reversal, and constructors that name their byte order — so a new hash
-//! type cannot forget the flip the way a hand-written `impl` can.
+//! meaning attached, and a pubkey hash is 20. One generic newtype at L1 gives
+//! all of them the storage, the width check, the hex codec and the equality,
+//! so a new hash type is a newtype plus a `Display` rather than seventy lines
+//! that can each be got subtly wrong.
+//!
+//! ### It does *not* give them a byte order
+//!
+//! The plan here used to say `Hash<N>` would supply a reversed `Display`,
+//! "Bitcoin's convention". Writing it disproved it: a merkle root and a P2WSH
+//! script commitment are both thirty-two bytes and only the first is shown
+//! reversed, so width does not predict order. Order is a property of the
+//! meaning, not of the size.
+//!
+//! So [`struct@Hash`] stores wire order, offers both renderings by name, and makes
+//! `Display` the forward one. A type that reverses says so in its own
+//! `Display` — which is exactly one line in
+//! [`Txid`](crate::transactions::tx::Txid), and that line is the whole
+//! declaration of its convention rather than a behaviour inherited silently.
 //!
 //! It also settles a dependency that would otherwise go sideways: merkle roots
 //! live in [`blocks`](crate::blocks) and txids in
 //! [`transactions`](crate::transactions), both L4. With `Hash<32>` the merkle
 //! code takes hashes and never mentions transactions at all.
 //!
-//! ### When it lands
+//! ### It landed with the second example, as planned
 //!
-//! Not yet, and deliberately: there is exactly one hash newtype in the crate
-//! today, and a generic designed from one example is designed from nothing.
-//! `blocks` is empty, so the sideways edge above is still hypothetical.
-//!
-//! It lands with whichever of `blocks::merkle` or `keys::address` is written
-//! first — that is the second example — and **the same change ports
-//! [`Txid`](crate::transactions::tx::Txid) onto it.** The duplication is
-//! already sitting there in concrete form: `Txid` hand-writes a reversing
-//! `Display`, a `FromStr` that undoes the reversal, a two-variant parse error
-//! and a serde impl, and every one of those is what `Hash<N>` exists to
-//! absorb. A *second* hand-written reversed `Display` is the defect to catch —
-//! the first one is just a type that arrived early.
+//! The trigger written here was "with whichever of `blocks::merkle` or
+//! `keys::address` comes first". `keys::address` came first, and the same
+//! change ported [`Txid`](crate::transactions::tx::Txid) onto it — deleting a
+//! hand-written parse error, a hand-written `FromStr`, and the width check,
+//! and leaving the one `Display` line that is genuinely about transactions.
+//! `keys` now names its twenty bytes
+//! [`AddressHash`](crate::keys::AddressHash) rather than `[u8; 20]`.
 
 // Private, so each function has exactly one public path. A `pub mod` beside
 // the re-export would publish `hashes::sha256` twice — once as a module and
@@ -85,10 +90,14 @@
 // it already cost this module disambiguating `super::sha256()` links. Opening
 // one of these later is additive; closing it after publication would not be.
 // `hmac.rs` may earn a `pub mod` when it lands, since it brings types.
+// `hash` is `pub mod` where the three digest files are not: it carries a type
+// with its own methods and error, not one function.
+pub mod hash;
 mod hash160;
 mod hash256;
 mod sha256;
 
+pub use hash::{Hash, HashParseError};
 pub use hash160::hash160;
 pub use hash256::hash256;
 pub use sha256::sha256;

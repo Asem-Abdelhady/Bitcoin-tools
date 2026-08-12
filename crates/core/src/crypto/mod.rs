@@ -4,11 +4,16 @@
 //! needing a scalar multiply goes through here rather than depending on the
 //! backend directly, so swapping the backend is a change to one module.
 //!
-//! ## Planned
+//! ## Done
 //!
 //! | File | Feature |
 //! |---|---|
 //! | `secp.rs` | The one `secp256k1` entry point: context, scalar and point types |
+//!
+//! ## Planned
+//!
+//! | File | Feature |
+//! |---|---|
 //! | `ecdsa.rs` | 7.1 ECDSA Sign, 7.2 ECDSA Verify, `Signature` (DER and compact) |
 //!
 //! Backend is the `secp256k1` crate — bindings to Bitcoin Core's
@@ -29,3 +34,7 @@
 //! uncompressed, x-only) on top. That is also the honest split: a signature
 //! check is about a point on a curve, not about how someone chose to
 //! serialize it.
+
+pub mod secp;
+
+pub use secp::{Point, PointError, ScalarError, SecretScalar};
