@@ -5,22 +5,15 @@
 //! [`crate::services::transactions::script`].
 
 use axum::{Json, extract::rejection::JsonRejection};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::handlers::error::ApiRejection;
 use crate::services::input::InputError;
-use crate::services::transactions::script::analyze_hex;
+use crate::services::transactions::script::{AnalyzeScriptRequest, analyze_hex};
 use bitcoin_tools_core::hex;
 use bitcoin_tools_core::transactions::script::{
     Category, DecodeError, ScriptAnalysis, ScriptFields,
 };
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct AnalyzeScriptRequest {
-    /// The script, hex-encoded, exactly as it appears in a raw transaction.
-    pub script: String,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

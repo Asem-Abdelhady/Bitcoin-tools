@@ -3,7 +3,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use common::{get, post_json, post_ok, post_without_content_type};
+use common::{assert_error, assert_transport_contract, get, post_json, post_ok};
 use serde_json::{Value, json};
 
 const URI: &str = "/transactions/script";
@@ -120,39 +120,33 @@ async fn rejects_an_empty_script() {
 #[tokio::test]
 async fn rejects_a_script_past_the_consensus_limit() {
     let too_big = "00".repeat(10_001);
-    let (status, body) = post_json(URI, &json!({ "script": too_big }).to_string()).await;
-    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(body["error"], "input-too-large");
+    assert_error(
+        post_json(URI, &json!({ "script": too_big }).to_string()).await,
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "input-too-large",
+    );
 }
 
-/// Each body problem keeps the status axum determined, rather than being
-/// flattened into one indistinguishable 400.
+/// The shared transport contract, plus the one body problem specific to this
+/// endpoint: a `script` that is not a string.
 #[tokio::test]
 async fn body_problems_keep_their_own_status() {
-    let (status, body) = post_json(URI, "{ not json").await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "malformed-json");
+    assert_transport_contract(URI, &json!({ "script": "76" })).await;
 
-    let (status, body) = post_json(URI, &json!({ "script": 76 }).to_string()).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "wrong field type");
-    assert_eq!(body["error"], "invalid-body");
-
-    let (status, body) = post_json(URI, &json!({ "scrpit": "76" }).to_string()).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "unknown field");
-    assert_eq!(body["error"], "invalid-body");
-
-    let (status, body) = post_without_content_type(URI, r#"{"script":"76"}"#).await;
-    assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert_eq!(body["error"], "unsupported-media-type");
+    assert_error(
+        post_json(URI, &json!({ "script": 76 }).to_string()).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "invalid-body",
+    );
 }
 
+/// The 404 fallback, which no other suite covers and which is not part of any
+/// one endpoint's contract.
 #[tokio::test]
-async fn wrong_method_and_unknown_path_use_the_error_envelope() {
-    let (status, body) = get(URI).await;
-    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
-    assert_eq!(body["error"], "method-not-allowed");
-
-    let (status, body) = get("/transactions/nope").await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-    assert_eq!(body["error"], "not-found");
+async fn an_unknown_path_uses_the_error_envelope() {
+    assert_error(
+        get("/transactions/nope").await,
+        StatusCode::NOT_FOUND,
+        "not-found",
+    );
 }

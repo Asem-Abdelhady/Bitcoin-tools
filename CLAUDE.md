@@ -44,10 +44,13 @@ Core's own layering (L0–L4, nothing imports upward) is in its README.
 | `services::input::hex_bytes` | The only definition of "usable hex input": trim, `0x`, empty, size cap. |
 | `services::error::ServiceError<E>` | `Input`-or-`Domain`. State only your own parse error type. |
 | `handlers::error` | `ApiError` trait + `ApiRejection<E>`. `IntoResponse`, the JSON envelope, `JsonRejection` mapping, and the 404/405 fallbacks are all implemented once. |
+| `tests/common::assert_transport_contract` | The four assertions every JSON endpoint owes a client — unknown field, broken body, missing `Content-Type`, wrong method. A suite asserts its *domain*; the transport half is one line. |
+| `tests/common::assert_error` | Status and slug together, with the body in the failure message. |
 
 A new endpoint's entire error cost is one `impl ApiError for MyDomainError` giving
 a status and a slug. If you find yourself writing an `ErrorBody`, an
-`IntoResponse` impl, a hex parser, or `max_bytes * 2 + 1024`, stop — it exists.
+`IntoResponse` impl, a hex parser, `max_bytes * 2 + 1024`, or a fourth copy of
+"unknown field is 422", stop — it exists.
 
 ## Mandatory review loop
 
@@ -98,7 +101,11 @@ they are what keep the two reviews independent.
 ### Request shape
 
 - Domain endpoints keep a self-documenting field name: `{"script": "<hex>"}`,
-  `{"tx": "<hex>"}`.
+  `{"tx": "<hex>"}`, `{"header": "<hex>"}`.
+- Two endpoints over one input share **one** request struct, in the service
+  that validates it — `/blocks/hash` and `/blocks/header` both take
+  `BlockHeaderRequest`. Two structs with identical fields would let the two
+  drift apart while looking deliberate.
 - Generic `/tools` endpoints share `HexRequest { hex: String }` rather than each
   inventing a key. A caller should not need a lookup table for an API with one
   input shape.
@@ -109,7 +116,10 @@ they are what keep the two reviews independent.
   `0xffffffff`, empty scriptSig) and `type` is required, because the
   serialization changes the bytes, the txid, and whether a witness survives at
   all — that is not a default anyone should inherit silently.
-- All request DTOs use `deny_unknown_fields`.
+- All request DTOs use `deny_unknown_fields`, and all of them live in their
+  service — `TxSpec`, `SplitTxRequest`, `AnalyzeScriptRequest`,
+  `BlockHeaderRequest`. No exceptions left; a request shape in a handler is
+  drift, not variation.
 
 ### JSON
 
@@ -136,6 +146,7 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `unsupported-media-type` | 415 | Missing or wrong `Content-Type` |
 | `unreadable-body` | 413 / 400 | Body could not be buffered: 413 past the route's transport cap, 400 if the stream failed |
 | `invalid-transaction` | 400 | Valid hex, not a transaction |
+| `invalid-block-header` | 400 | Valid hex, but not the 80 bytes a header is |
 | `invalid-txid` | 400 | A `txid` field was not 32 bytes of hex |
 | `no-inputs` | 400 | A build request spends nothing |
 | `no-outputs` | 400 | A build request pays nothing |
@@ -161,6 +172,16 @@ Note one endpoint can return 413 under two slugs: `unreadable-body` is the
 transport cap rejecting the request before the handler runs,
 `input-too-large` is the service rejecting the decoded value. Both are real and
 the distinction is worth keeping, but document it for clients.
+
+A **fixed-width** input has no "too large". `/blocks/*` takes exactly 80 bytes,
+so a byte over and a byte under are one mistake and get one answer:
+`invalid-block-header`, 400, in both directions. `hex_bytes` still decides the
+input is usable, but its `TooLarge` is relabelled to the domain's wrong-length
+error, because `input-too-large` elsewhere means a 10 kB script or a 1 MB
+transaction and a client should not learn two vocabularies for one failure —
+the same rule the builder follows for a wrong-length `txid`. A third
+fixed-width endpoint (§ 7's keys and signatures are all fixed-width) should
+promote this to `services::input::hex_bytes_exact` rather than copy the match.
 
 A malformed *request* is 4xx. Malformed *data* the request asked about is a
 judgement call: a broken script returns 200 with an `error` field, because

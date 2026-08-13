@@ -3,8 +3,21 @@
 //! Nothing here knows about HTTP, so a CLI, a batch job, or a handler reading
 //! rows out of a database can all call it.
 
+use serde::Deserialize;
+
 use crate::services::input::{InputError, hex_bytes};
 use bitcoin_tools_core::transactions::script::{Script, ScriptAnalysis};
+
+/// What `/transactions/script` accepts.
+///
+/// Beside its service for the same reason as every other request shape: which
+/// fields exist is input policy, not transport.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalyzeScriptRequest {
+    /// The script, hex-encoded, exactly as it appears in a raw transaction.
+    pub script: String,
+}
 
 /// Validate a hex script and analyse it.
 ///

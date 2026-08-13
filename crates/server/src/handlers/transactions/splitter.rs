@@ -5,22 +5,15 @@
 
 use axum::{Json, extract::rejection::JsonRejection};
 use serde::ser::SerializeMap;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 
 use axum::http::StatusCode;
 
 use crate::handlers::error::{ApiError, ApiRejection};
-use crate::services::transactions::tx::{TxServiceError, split_hex};
+use crate::services::transactions::tx::{SplitTxRequest, TxServiceError, split_hex};
 use bitcoin_tools_core::transactions::tx::{
     InputBreakdown, OutputBreakdown, TxBreakdown, TxDecodeError, WitnessBreakdown,
 };
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SplitTxRequest {
-    /// The raw transaction, hex-encoded.
-    pub tx: String,
-}
 
 /// Field order here is the serialization order, so reading the JSON top to
 /// bottom walks the raw bytes left to right.

@@ -1,8 +1,23 @@
 //! Transaction splitting as a use case, independent of how it was requested.
 
+use serde::Deserialize;
+
 use crate::services::error::ServiceError;
 use crate::services::input::hex_bytes;
 use bitcoin_tools_core::transactions::tx::{Tx, TxBreakdown, TxDecodeError};
+
+/// What `/transactions/splitter` accepts.
+///
+/// A request shape is input policy, so it lives beside the service that
+/// validates it, as [`TxSpec`](crate::services::transactions::builder::TxSpec)
+/// and [`BlockHeaderRequest`](crate::services::blocks::header::BlockHeaderRequest)
+/// do.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SplitTxRequest {
+    /// The raw transaction, hex-encoded.
+    pub tx: String,
+}
 
 /// Bad input, or valid hex that is not a transaction.
 pub type TxServiceError = ServiceError<TxDecodeError>;

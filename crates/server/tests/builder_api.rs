@@ -11,7 +11,7 @@ mod common;
 use axum::http::StatusCode;
 use bitcoin_tools_core::general::{Amount, reverse_hex};
 use bitcoin_tools_vectors::{legacy, segwit};
-use common::{get, post_json, post_ok, post_without_content_type};
+use common::{assert_error, assert_transport_contract, message, post_json, post_ok};
 use serde_json::{Value, json};
 
 const URI: &str = "/transactions/builder";
@@ -166,9 +166,11 @@ async fn rebuilds_the_vectors_byte_for_byte() {
 #[tokio::test]
 async fn the_domain_rules_reach_the_client_with_their_own_slugs() {
     // Segwit asked for, nothing to put in the witness section.
-    let (status, body) = build(minimal("segwit")).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "segwit-without-witness");
+    assert_error(
+        build(minimal("segwit")).await,
+        StatusCode::BAD_REQUEST,
+        "segwit-without-witness",
+    );
 
     // The same outpoint twice.
     let mut duplicate = minimal("legacy");
@@ -176,30 +178,33 @@ async fn the_domain_rules_reach_the_client_with_their_own_slugs() {
         { "txid": FUNDING, "vout": 1 },
         { "txid": FUNDING, "vout": 1 },
     ]);
-    let (status, body) = build(duplicate).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "duplicate-input");
+    let body = assert_error(
+        build(duplicate).await,
+        StatusCode::BAD_REQUEST,
+        "duplicate-input",
+    );
     assert!(
-        body["message"]
-            .as_str()
-            .expect("a message")
-            .contains("input 1"),
+        message(&body).contains("input 1"),
         "the message names which input: {body}"
     );
 
     // Nothing to pay.
     let mut no_outputs = minimal("legacy");
     no_outputs["outputs"] = json!([]);
-    let (status, body) = build(no_outputs).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "no-outputs");
+    assert_error(
+        build(no_outputs).await,
+        StatusCode::BAD_REQUEST,
+        "no-outputs",
+    );
 
     // More than will ever exist.
     let mut too_much = minimal("legacy");
     too_much["outputs"][0]["amount"] = json!(Amount::MAX_MONEY.to_sat() + 1);
-    let (status, body) = build(too_much).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "amount-out-of-range");
+    assert_error(
+        build(too_much).await,
+        StatusCode::BAD_REQUEST,
+        "amount-out-of-range",
+    );
 }
 
 #[tokio::test]
@@ -209,59 +214,41 @@ async fn a_bad_field_is_reported_with_its_position() {
         { "txid": FUNDING, "vout": 0 },
         { "txid": "not-a-txid", "vout": 1 },
     ]);
-    let (status, body) = build(bad_txid).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "invalid-txid");
-    assert!(
-        body["message"]
-            .as_str()
-            .expect("a message")
-            .contains("input 1"),
-        "{body}"
+    let body = assert_error(
+        build(bad_txid).await,
+        StatusCode::BAD_REQUEST,
+        "invalid-txid",
     );
+    assert!(message(&body).contains("input 1"), "{body}");
 
     // A hex problem in a script reports the same slug it reports everywhere
     // else, with the position added to the message.
     let mut bad_script = minimal("legacy");
     bad_script["outputs"][0]["scriptPubkey"] = json!("zz");
-    let (status, body) = build(bad_script).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "invalid-hex");
-    assert!(
-        body["message"]
-            .as_str()
-            .expect("a message")
-            .contains("scriptPubkey"),
-        "{body}"
+    let body = assert_error(
+        build(bad_script).await,
+        StatusCode::BAD_REQUEST,
+        "invalid-hex",
     );
+    assert!(message(&body).contains("scriptPubkey"), "{body}");
 }
 
+/// The shared transport contract, plus the one shape rule this endpoint adds:
+/// `type` is required and closed.
 #[tokio::test]
 async fn the_request_shape_is_enforced() {
-    // An unknown field is a typo, not something to ignore.
-    let mut unknown = minimal("legacy");
-    unknown["lockTme"] = json!(0);
-    let (status, body) = build(unknown).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(body["error"], "invalid-body");
+    assert_transport_contract(URI, &minimal("legacy")).await;
 
-    // `type` is required and closed.
-    let (status, body) = build(json!({
-        "type": "taproot",
-        "inputs": [{ "txid": FUNDING, "vout": 1 }],
-        "outputs": [{ "amount": 1u64, "scriptPubkey": P2WPKH }],
-    }))
-    .await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(body["error"], "invalid-body");
-
-    let (status, body) = post_without_content_type(URI, &minimal("legacy").to_string()).await;
-    assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert_eq!(body["error"], "unsupported-media-type");
-
-    let (status, body) = post_json(URI, "{").await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "malformed-json");
+    assert_error(
+        build(json!({
+            "type": "taproot",
+            "inputs": [{ "txid": FUNDING, "vout": 1 }],
+            "outputs": [{ "amount": 1u64, "scriptPubkey": P2WPKH }],
+        }))
+        .await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "invalid-body",
+    );
 }
 
 /// Both size ceilings, which is the one place this endpoint's two limits
@@ -298,11 +285,4 @@ async fn both_size_limits_report_which_one_was_hit() {
         "a request that fits the body cap and builds an impossible transaction \
          must hear about the transaction, not the body"
     );
-}
-
-#[tokio::test]
-async fn the_endpoint_is_post_only() {
-    let (status, body) = get(URI).await;
-    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
-    assert_eq!(body["error"], "method-not-allowed");
 }

@@ -4,7 +4,7 @@ mod common;
 
 use axum::http::StatusCode;
 use bitcoin_tools_vectors::{legacy, segwit};
-use common::{get, post_json, post_ok, vector};
+use common::{assert_error, assert_transport_contract, post_json, post_ok, vector};
 use serde_json::{Value, json};
 
 const URI: &str = "/transactions/splitter";
@@ -95,21 +95,18 @@ async fn rejects_trailing_bytes() {
     );
 }
 
+/// The shared transport contract, plus this endpoint's own field name: `tx`
+/// is not a synonym for `transaction`.
 #[tokio::test]
-async fn body_problems_keep_their_own_status() {
-    let (status, body) = post_json(URI, "{ not json").await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "malformed-json");
+async fn the_request_shape_is_enforced() {
+    let real = vector(legacy(), 0);
+    assert_transport_contract(URI, &json!({ "tx": real["rawTx"] })).await;
 
-    let (status, _) = post_json(URI, &json!({ "transaction": "01" }).to_string()).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "wrong field name");
-}
-
-#[tokio::test]
-async fn wrong_method_uses_the_error_envelope() {
-    let (status, body) = get(URI).await;
-    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
-    assert_eq!(body["error"], "method-not-allowed");
+    assert_error(
+        post_json(URI, &json!({ "transaction": "01" }).to_string()).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "invalid-body",
+    );
 }
 
 /// The two endpoints are inverses, and this is the seam between them: what the
