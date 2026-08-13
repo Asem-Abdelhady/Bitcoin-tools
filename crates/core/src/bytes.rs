@@ -13,6 +13,26 @@
 //! assert_eq!(r.varint().unwrap(), 0x0201);
 //! assert!(r.is_empty());
 //! ```
+//!
+//! # There is no `Writer`
+//!
+//! [`Reader`] has no counterpart, and 5.1 is why. The plan used to say a
+//! `bytes::Writer` had to exist before the transaction builder could, because
+//! the builder would write bytes.
+//! [`TxBuilder`](crate::transactions::TxBuilder) does not: `Tx::encode` was
+//! already the serializer, so the builder assembles a
+//! [`Tx`](crate::transactions::Tx) and validates it. The one thing it needed
+//! from this module was arithmetic — [`varint_len`], to measure a transaction
+//! without building one — and that was already here.
+//!
+//! What remains is three hand-rolled encoders, and they do not want the same
+//! tool: `Tx::encode` grows a `Vec` with varint-prefixed fields, while a block
+//! header and an extended key each fill a fixed array at known offsets. An
+//! appending `Writer` would serve one of the three. Whatever is eventually
+//! written here has to cover both shapes, or it is not the shared thing it
+//! claims to be — and until something needs it, three short encoders that each
+//! read plainly are not obviously worse than one abstraction that reads for
+//! none of them.
 
 use std::fmt;
 use std::num::NonZeroUsize;

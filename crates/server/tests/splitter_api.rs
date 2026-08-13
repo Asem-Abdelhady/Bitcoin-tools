@@ -4,15 +4,13 @@ mod common;
 
 use axum::http::StatusCode;
 use bitcoin_tools_vectors::{legacy, segwit};
-use common::{get, post_json, vector};
+use common::{get, post_json, post_ok, vector};
 use serde_json::{Value, json};
 
 const URI: &str = "/transactions/splitter";
 
 async fn split(tx: &str) -> Value {
-    let (status, body) = post_json(URI, &json!({ "tx": tx }).to_string()).await;
-    assert_eq!(status, StatusCode::OK, "unexpected status; body = {body}");
-    body
+    post_ok(URI, &json!({ "tx": tx })).await
 }
 
 #[tokio::test]
@@ -114,10 +112,39 @@ async fn wrong_method_uses_the_error_envelope() {
     assert_eq!(body["error"], "method-not-allowed");
 }
 
-/// The builder route is wired up but honest about not existing yet.
+/// The two endpoints are inverses, and this is the seam between them: what the
+/// builder produced, the splitter takes apart into the fields it was built
+/// from. `builder_api.rs` drives the same property from the other side.
 #[tokio::test]
-async fn builder_is_not_implemented() {
-    let (status, body) = post_json("/transactions/builder", "{}").await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
-    assert_eq!(body["error"], "not-implemented");
+async fn what_the_builder_produces_the_splitter_reads_back() {
+    let (status, built) = post_json(
+        "/transactions/builder",
+        &json!({
+            "type": "legacy",
+            "inputs": [{
+                "txid": "8500bb8ff66dea2b8d7f054d06b0363c3d0b25dcf6f0c62967f98f953ae9a2b7",
+                "vout": 1,
+            }],
+            "outputs": [{
+                "amount": 54_697u64,
+                "scriptPubkey": "0014275b468073affad6c1b2833d026416ec07392b7f",
+            }],
+        })
+        .to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{built}");
+
+    let split = split(built["rawTx"].as_str().expect("raw hex")).await;
+    assert_eq!(split["txid"], built["txid"]);
+    assert_eq!(split["rawTx"], built["rawTx"]);
+    assert_eq!(
+        split["version"], "02000000",
+        "the builder's default version"
+    );
+    assert_eq!(
+        split["inputs"][0]["sequence"], "ffffffff",
+        "not replaceable"
+    );
+    assert_eq!(split["outputs"][0]["amount"], "a9d5000000000000");
 }

@@ -3,15 +3,13 @@
 mod common;
 
 use axum::http::StatusCode;
-use common::{get, post_json, post_without_content_type};
+use common::{get, post_json, post_ok, post_without_content_type};
 use serde_json::{Value, json};
 
 const URI: &str = "/transactions/script";
 
 async fn analyze(script: &str) -> Value {
-    let (status, body) = post_json(URI, &json!({ "script": script }).to_string()).await;
-    assert_eq!(status, StatusCode::OK, "unexpected status; body = {body}");
-    body
+    post_ok(URI, &json!({ "script": script })).await
 }
 
 #[tokio::test]

@@ -15,7 +15,21 @@ use bitcoin_tools_core::transactions::tx::Tx;
 /// Routes mounted under `/transactions`.
 pub fn router() -> Router {
     Router::new()
-        .route("/builder", post(builder::post_tx_builder))
+        .route(
+            "/builder",
+            post(builder::post_build_tx)
+                // A build request is hex inside JSON keys, quotes and commas,
+                // so it is strictly larger than the transaction it produces:
+                // this is a transport budget, not the domain's ceiling. What
+                // is buildable is capped by `Tx::MAX_WEIGHT` on the
+                // witness-stripped size — 1,000,000 bytes, which a request of
+                // roughly 2 MB reaches, comfortably inside this. That headroom
+                // is the point: it lets the domain answer
+                // `transaction-too-large` rather than the transport answering
+                // `unreadable-body`, which
+                // `both_size_limits_report_which_one_was_hit` asserts.
+                .layer(DefaultBodyLimit::max(body_limit(Tx::MAX_SIZE))),
+        )
         .route(
             "/script",
             post(script::post_analyze_script)

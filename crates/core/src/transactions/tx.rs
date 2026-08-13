@@ -15,7 +15,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 
 use super::script::Script;
-use crate::bytes::{ReadError, Reader, write_varint};
+use crate::bytes::{ReadError, Reader, varint_len, write_varint};
 use crate::general::Amount;
 use crate::hashes::hash::reversed_hash;
 use crate::hashes::hash256;
@@ -28,11 +28,26 @@ reversed_hash! {
     /// order block explorers and RPC print. Everything else comes from
     /// [`Hash`](crate::hashes::Hash), which stores wire order and never
     /// guesses.
+    ///
+    /// [`Txid::to_hash`] is the way out to something that is about thirty-two
+    /// bytes rather than about a transaction — a merkle tree, say, which is
+    /// exactly what [`merkle::root`](crate::blocks::merkle::root) takes.
     Txid, subject: "transaction", in: "transaction"
 }
 
 /// The output being spent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Hash` and `Eq` are derived because an outpoint is an identity: consensus
+/// forbids two inputs of one transaction from naming the same one, and
+/// [`TxBuilder`](crate::transactions::builder::TxBuilder) checks that with a
+/// set rather than a quadratic scan.
+///
+/// The derived `Ord` compares the txid's **wire** bytes, which is *not*
+/// BIP69's ordering — that one compares txids as displayed, so it is the
+/// reverse. `inputs.sort_by_key(|i| i.previous_output)` is the obvious line to
+/// write and gives a plausible-looking wrong answer; BIP69 sorting has to
+/// reverse first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct OutPoint {
@@ -40,6 +55,26 @@ pub struct OutPoint {
     pub txid: Txid,
     /// Which of that transaction's outputs, counting from zero.
     pub vout: u32,
+}
+
+impl OutPoint {
+    /// The outpoint only a coinbase may spend: a zero txid and vout
+    /// `0xffffffff`.
+    ///
+    /// Both halves, and only both. A zero txid with a real vout is an ordinary
+    /// (if unspendable) outpoint, and vout `0xffffffff` of a real txid is too —
+    /// which is why this is a constant rather than a literal repeated at each
+    /// check.
+    pub const NULL: OutPoint = OutPoint {
+        txid: Txid::from_wire([0; 32]),
+        vout: u32::MAX,
+    };
+
+    /// True only for [`OutPoint::NULL`].
+    #[must_use]
+    pub fn is_null(&self) -> bool {
+        *self == OutPoint::NULL
+    }
 }
 
 /// An input's witness: a stack of byte vectors, empty for non-segwit inputs.
@@ -130,6 +165,15 @@ pub struct Tx {
     /// transaction with all-empty witnesses is *supposed* to use the legacy
     /// form, but the two encodings are distinguishable and we preserve
     /// whichever one we were handed.
+    ///
+    /// That preservation is a deliberate asymmetry with the rest of the crate,
+    /// and it is worth stating plainly. Core *refuses* those bytes when
+    /// reading — "Superfluous witness record" — and
+    /// [`TxBuilder`](crate::transactions::builder::TxBuilder) refuses to
+    /// produce them. This decoder accepts them, because a tools library handed
+    /// bytes should show what they say. So "anything `decode` accepts,
+    /// `TxBuilder` can rebuild" is false in exactly one place, and
+    /// [`Tx::is_bip144_canonical`] is how to ask before finding out.
     pub segwit: bool,
 }
 
@@ -205,7 +249,13 @@ impl std::error::Error for TxDecodeError {
 // ---------------------------------------------------------------- decoding
 
 impl Tx {
-    /// Largest transaction that could ever appear in a block.
+    /// Largest transaction a *decoder* will read — the cap on input, and the
+    /// one the server sizes its hex body limit from.
+    ///
+    /// Not the limit on what can be *built*: that is
+    /// [`Tx::MAX_WEIGHT`], measured on the witness-stripped size, which works
+    /// out four times smaller. The two are different questions and this is the
+    /// constant reached for first, so it is worth saying here.
     pub const MAX_SIZE: usize = 4_000_000;
 
     /// The smallest an input can serialize to: 32 txid + 4 vout
@@ -314,10 +364,118 @@ impl Tx {
         })
     }
 
+    /// Core's `MAX_BLOCK_WEIGHT`, and the ceiling `bad-txns-oversize` measures
+    /// a transaction against.
+    ///
+    /// Not the same limit as [`Tx::MAX_SIZE`], which bounds what a *decoder*
+    /// will read. This one bounds what is buildable: the rule is the
+    /// witness-stripped size times four, so it caps [`Tx::base_size`] at a
+    /// quarter of this — 1,000,000 bytes — however large the witnesses are.
+    pub const MAX_WEIGHT: usize = 4_000_000;
+
+    /// The factor BIP141 scales base bytes by. Witness bytes count once, base
+    /// bytes four times, which is what makes a witness discount a discount.
+    pub const WITNESS_SCALE_FACTOR: usize = 4;
+
     /// True if any input actually carries witness data.
     #[must_use]
     pub fn has_witness(&self) -> bool {
         self.inputs.iter().any(|i| !i.witness.is_empty())
+    }
+
+    /// True if this is a coinbase: exactly one input, spending
+    /// [`OutPoint::NULL`].
+    #[must_use]
+    pub fn is_coinbase(&self) -> bool {
+        self.inputs.len() == 1 && self.inputs[0].previous_output.is_null()
+    }
+
+    /// Whether the serialization is the one BIP144 prescribes for these
+    /// contents.
+    ///
+    /// False only for the case in [`Tx::segwit`]'s note: marker and flag
+    /// present with no witness data anywhere. Those bytes decode here and are
+    /// refused by Core and by
+    /// [`TxBuilder`](crate::transactions::builder::TxBuilder).
+    #[must_use]
+    pub fn is_bip144_canonical(&self) -> bool {
+        !self.segwit || self.has_witness()
+    }
+
+    /// Serialized size with marker, flag and witnesses stripped — the size a
+    /// legacy node sees, and the one `bad-txns-oversize` and BIP141's weight
+    /// are computed from.
+    ///
+    /// Counted rather than serialized: this is the sum of the field widths and
+    /// their length prefixes, so asking costs no allocation. That is what
+    /// [`varint_len`] is for.
+    #[must_use]
+    pub fn base_size(&self) -> usize {
+        let inputs: usize = self
+            .inputs
+            .iter()
+            .map(|i| {
+                let script = i.script_sig.len();
+                32 + 4 + varint_len(script as u64) + script + 4
+            })
+            .sum();
+        let outputs: usize = self
+            .outputs
+            .iter()
+            .map(|o| {
+                let script = o.script_pubkey.len();
+                8 + varint_len(script as u64) + script
+            })
+            .sum();
+
+        4 + varint_len(self.inputs.len() as u64)
+            + inputs
+            + varint_len(self.outputs.len() as u64)
+            + outputs
+            + 4
+    }
+
+    /// Serialized size as this transaction is actually written, witnesses and
+    /// BIP144 marker included. Equal to [`Tx::base_size`] for a legacy one.
+    #[must_use]
+    pub fn total_size(&self) -> usize {
+        if !self.segwit {
+            return self.base_size();
+        }
+        let witness: usize = self
+            .inputs
+            .iter()
+            .map(|i| {
+                varint_len(i.witness.len() as u64)
+                    + i.witness
+                        .items()
+                        .iter()
+                        .map(|item| varint_len(item.len() as u64) + item.len())
+                        .sum::<usize>()
+            })
+            .sum();
+        // The marker and the flag are the two bytes the witness section costs
+        // even before its first item.
+        self.base_size() + 2 + witness
+    }
+
+    /// BIP141 weight: base bytes counted four times, witness bytes once.
+    ///
+    /// Written as `base * 3 + total` rather than
+    /// `base * 4 + witness`, which is the same number and is how BIP141 states
+    /// it.
+    #[must_use]
+    pub fn weight(&self) -> usize {
+        self.base_size() * (Self::WITNESS_SCALE_FACTOR - 1) + self.total_size()
+    }
+
+    /// Virtual size: [`Tx::weight`] divided by four, rounded up.
+    ///
+    /// The number a fee rate is quoted against — sat/vB — and the reason a
+    /// segwit spend is cheaper than the same spend written legacy.
+    #[must_use]
+    pub fn vsize(&self) -> usize {
+        self.weight().div_ceil(Self::WITNESS_SCALE_FACTOR)
     }
 
     /// Consensus serialization, including witnesses if this is a segwit tx.

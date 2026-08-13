@@ -242,7 +242,7 @@ macro_rules! reversed_hash {
 
             #[doc = concat!(
                 "The underlying digest, for anything that is about thirty-two bytes \
-                 rather than about a ", $subject, " — a merkle tree, say."
+                 rather than about a ", $subject, "."
             )]
             ///
             /// **The value returned prints in wire order.**
