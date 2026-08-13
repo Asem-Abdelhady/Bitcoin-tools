@@ -13,8 +13,17 @@
 //! `zeroize` dependency and `Drop` impls, and it only buys anything against an
 //! attacker reading freed memory — a threat this crate, which decodes data a
 //! user pasted, is not otherwise defending against. It is a deliberate
-//! omission rather than an oversight, and the decision to revisit belongs with
-//! whoever adds signing.
+//! omission rather than an oversight, and the note here used to say the
+//! decision belonged with whoever added signing.
+//!
+//! Signing arrived in § 7 and the decision is unchanged, for a specific
+//! reason: [`ecdsa::sign`](super::ecdsa::sign) *borrows* the scalar and hands
+//! it to the backend, so it creates no new copy of the secret and no new place
+//! for one to be left behind. The exposure is the same as it was — a
+//! [`SecretScalar`] living as long as its owner, plus whatever
+//! [`SecretScalar::to_be_bytes`] is asked for — so zeroization stays a
+//! separate decision, to be taken on its own merits rather than smuggled in
+//! with a feature.
 //!
 //! Keeping the backend behind this module is what makes it replaceable: the
 //! `secp256k1` crate wraps Bitcoin Core's libsecp256k1, which is constant-time
@@ -114,6 +123,17 @@ impl SecretScalar {
         Point(BackendPublic::from_secret_key(context(), &self.0))
     }
 
+    /// The backend key, for [`ecdsa`](super::ecdsa) — the one other module
+    /// allowed to hold one.
+    ///
+    /// `pub(crate)` rather than `pub`: signing needs the backend type and
+    /// lives next door, but a `secp256k1::SecretKey` must not become part of
+    /// this crate's public API, or swapping the backend would break every
+    /// consumer rather than these two files.
+    pub(crate) const fn as_backend(&self) -> &BackendSecret {
+        &self.0
+    }
+
     /// `self + tweak` modulo the group order.
     ///
     /// The scalar half of BIP32's derivation step, and the only arithmetic
@@ -176,22 +196,26 @@ impl std::error::Error for TweakError {}
 /// construction into a *randomized* one, and this crate would then be
 /// re-randomizing on every single key derivation without having asked for it.
 ///
-/// `signing_only` rather than `new`: deriving a point is all this crate asks
-/// for today, and stating the narrower capability means a future verification
-/// path has to say so rather than inheriting it.
-fn context() -> &'static Secp256k1<SignOnly> {
+/// `signing_only` rather than `new`: this context derives points and produces
+/// signatures, and stating the narrower capability meant that verification had
+/// to ask for its own rather than inheriting one. It did — see
+/// [`verify_context`], added for the tweaks and now also carrying
+/// [`ecdsa::verify`](super::ecdsa::verify).
+pub(crate) fn context() -> &'static Secp256k1<SignOnly> {
     static CTX: OnceLock<Secp256k1<SignOnly>> = OnceLock::new();
     CTX.get_or_init(Secp256k1::signing_only)
 }
 
-/// The verification context, for the two tweaks that need one.
+/// The verification context: the two tweaks, and
+/// [`ecdsa::verify`](super::ecdsa::verify).
 ///
 /// A second context rather than widening the first to `All`. Tweaking a
 /// *point* is a verification-side operation in libsecp256k1's model, and the
 /// note above says a future capability should have to be asked for by name
 /// rather than inherited — so it is asked for here, by name, and the signing
-/// context stays narrow.
-fn verify_context() -> &'static Secp256k1<VerifyOnly> {
+/// context stays narrow. § 7 then needed exactly this one, which is the
+/// arrangement working rather than an accident.
+pub(crate) fn verify_context() -> &'static Secp256k1<VerifyOnly> {
     static CTX: OnceLock<Secp256k1<VerifyOnly>> = OnceLock::new();
     CTX.get_or_init(Secp256k1::verification_only)
 }
@@ -266,6 +290,12 @@ impl Point {
         let mut x = [0u8; SCALAR_SIZE];
         x.copy_from_slice(&self.to_compressed()[1..]);
         x
+    }
+
+    /// The backend point, for [`ecdsa`](super::ecdsa). See
+    /// [`SecretScalar::as_backend`] for why this is not public.
+    pub(crate) const fn as_backend(&self) -> &BackendPublic {
+        &self.0
     }
 
     /// `self + tweak * G`.

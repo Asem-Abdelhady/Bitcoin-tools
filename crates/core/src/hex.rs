@@ -182,6 +182,26 @@ pub fn normalize(s: &str) -> &str {
     s.strip_prefix("0x").unwrap_or(s)
 }
 
+/// [`normalize`] then [`decode`]: what every `from_hex` in this crate means by
+/// a hex string.
+///
+/// Ten types read hex a person supplied — a header, a transaction, a script, a
+/// key, a signature, an extended key — and every one of them wants the same
+/// leniency about surrounding whitespace and an `0x` prefix, and the same
+/// strictness about everything else. Spelling that as `decode(normalize(s))`
+/// per type is one policy written ten times, and a policy written ten times is
+/// one that changes in nine places.
+///
+/// Offsets in the returned error are relative to the normalized string; see
+/// [`normalize`].
+///
+/// # Errors
+///
+/// [`HexError`], as [`decode`].
+pub fn decode_lenient(s: &str) -> Result<Vec<u8>, HexError> {
+    decode(normalize(s))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

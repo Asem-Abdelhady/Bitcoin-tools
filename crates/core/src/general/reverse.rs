@@ -53,7 +53,7 @@ use crate::hex::{self, HexError};
 /// # Ok::<_, bitcoin_tools_core::hex::HexError>(())
 /// ```
 pub fn reverse_hex(s: &str) -> Result<String, HexError> {
-    hex::decode(hex::normalize(s)).map(|bytes| hex::encode_rev(&bytes))
+    hex::decode_lenient(s).map(|bytes| hex::encode_rev(&bytes))
 }
 
 #[cfg(test)]

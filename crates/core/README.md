@@ -76,9 +76,9 @@ src/
 ├── encoding/             ✓ shared codecs
 │   ├── base58.rs         ✓ Base58, Base58Check
 │   └── bech32.rs         ✓ Bech32, Bech32m
-├── crypto/                 § 7
+├── crypto/               ✓ § 7
 │   ├── secp.rs           ✓ the one secp256k1 entry point, and the tweaks
-│   └── ecdsa.rs            7.1 sign, 7.2 verify, Signature
+│   └── ecdsa.rs          ✓ 7.1 sign, 7.2 verify, Signature (DER and compact)
 ├── keys/                 ✓ § 3
 │   ├── private.rs        ✓ 3.1  PrivateKey, WIF
 │   ├── public.rs         ✓ 3.2  PublicKey: (x,y) / compressed / x-only
@@ -193,8 +193,19 @@ importing `transactions` sideways at L4.
 
 | | Feature | Status | Notes |
 |---|---|---|---|
-| 7.1 | ECDSA Sign | Planned | Sign a message hash with a private key. |
-| 7.2 | ECDSA Verify | Planned | Verify a signature against a public key. |
+| 7.1 | ECDSA Sign | **Done** | Sign a 32-byte hash with a `SecretScalar`, or with a `PrivateKey` one layer up. RFC 6979 deterministic: no RNG, and a repeated nonce — which hands an attacker the private key outright — is impossible unless the message repeats. That is also what makes signing testable, and the seven published vectors pin the signatures byte for byte. Output is always low-`s`. |
+| 7.2 | ECDSA Verify | **Done** | Verify against a `Point`, or a `PublicKey` one layer up. Answers the *arithmetic* question and so normalises `s` first; `Signature::is_low_s` answers Bitcoin's separate malleability policy. Verified against all 476 Wycheproof cases, 308 of which must be refused. |
+
+`Signature` holds the pair `(r, s)`, reads strict DER (BIP66) and the fixed
+64-byte form, and writes both. It re-checks both scalars after parsing, which
+is not belt-and-braces: libsecp256k1's DER integer parser answers *success* for
+an integer at or above the group order and substitutes **zero** for it, so a
+signature parsed straight from the backend can carry an `r` the input never
+contained.
+
+Not here, deliberately: low-`r` grinding (a wallet's fee optimisation, and not
+predicted by the RFC 6979 vectors), and lax DER for pre-BIP66 scripts. Both are
+additive.
 
 ## Features
 
@@ -292,8 +303,13 @@ Vectors live in the `bitcoin-tools-vectors` workspace crate, a dev-only member
 shared with the server so both assert against identical bytes.
 
 `tests/tx_vectors.rs` is the acceptance criteria for 5.2, `script_vectors.rs`
-for 5.3, `hd_vectors.rs` for all of § 4, and `block_vectors.rs` for § 6 — each
-asserts against the vector files, never against a restated expectation.
+for 5.3, `hd_vectors.rs` for all of § 4, `block_vectors.rs` for § 6 and
+`crypto_vectors.rs` for § 7 — each asserts against the vector files, never
+against a restated expectation.
+
+§ 7's verification half is Project Wycheproof's ECDSA suite, vendored unchanged
+(copyright Google LLC and contributors, Apache-2.0). Its 308 refusals are the
+reason it is there.
 
 Where a BIP publishes vectors they are transcribed unchanged. Where it does not
 — § 6 has no vector file, because the chain itself is the vector — the data is

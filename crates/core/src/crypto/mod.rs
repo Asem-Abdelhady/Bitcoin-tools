@@ -4,16 +4,11 @@
 //! needing a scalar multiply goes through here rather than depending on the
 //! backend directly, so swapping the backend is a change to one module.
 //!
-//! ## Done
+//! ## Files
 //!
 //! | File | Feature |
 //! |---|---|
 //! | `secp.rs` | The one `secp256k1` entry point: contexts, scalar and point types, and the tweaks BIP32 and BIP340 need |
-//!
-//! ## Planned
-//!
-//! | File | Feature |
-//! |---|---|
 //! | `ecdsa.rs` | 7.1 ECDSA Sign, 7.2 ECDSA Verify, `Signature` (DER and compact) |
 //!
 //! Backend is the `secp256k1` crate — bindings to Bitcoin Core's
@@ -42,7 +37,25 @@
 //! uncompressed, x-only) on top. That is also the honest split: a signature
 //! check is about a point on a curve, not about how someone chose to
 //! serialize it.
+//!
+//! ## The backend surface is these two files, not one
+//!
+//! `secp.rs` says the backend lives behind it, and `ecdsa.rs` names
+//! `secp256k1::ecdsa::Signature` too — because a signature type that stored
+//! its own `(r, s)` would mean hand-rolling a strict-DER parser, and BIP66
+//! exists precisely because that is easy to get subtly wrong. So the rule is
+//! the honest one: the backend is confined to this *module*, both files change
+//! together, and nothing above L2 names it. `SecretScalar::as_backend` and
+//! `Point::as_backend` are `pub(crate)` to keep that true.
 
+pub mod ecdsa;
 pub mod secp;
 
+// Only the curve types are re-exported. `Signature`, `sign` and `verify` stay
+// at `ecdsa::`, because none of those three names says *which* scheme, and
+// this module already carries BIP340 groundwork — `tagged_sha256` and
+// `Point::add_tweak_x_only` exist for taproot. The day schnorr lands,
+// `crypto::sign` would either be ambiguous or already taken, and taking a name
+// back is a major version. `transactions/mod.rs` refuses a glob re-export for
+// the same reason.
 pub use secp::{Point, PointError, ScalarError, SecretScalar, TweakError};

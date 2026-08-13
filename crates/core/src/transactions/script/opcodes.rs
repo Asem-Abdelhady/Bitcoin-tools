@@ -12,6 +12,7 @@
 //!   Encoding *the byte* lets one type serve all three contexts; encoding
 //!   *the meaning* would need one enum per context.
 
+use crate::parse::display_serialize;
 use std::fmt;
 
 /// A single script opcode. Any `u8` is a valid `Opcode`.
@@ -333,12 +334,7 @@ impl From<Opcode> for u8 {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Opcode {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Opcode);
 
 #[cfg(test)]
 mod tests {

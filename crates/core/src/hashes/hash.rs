@@ -115,7 +115,7 @@ impl<const N: usize> Hash<N> {
     ///
     /// [`HashParseError`] for bad hex or the wrong width.
     pub fn from_hex(s: &str) -> Result<Self, HashParseError> {
-        Self::from_slice(&hex::decode(hex::normalize(s))?)
+        Self::from_slice(&hex::decode_lenient(s)?)
     }
 
     /// Read `N` bytes of hex written in *display* order, undoing the reversal.

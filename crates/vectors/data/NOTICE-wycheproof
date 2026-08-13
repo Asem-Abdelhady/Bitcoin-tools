@@ -1,0 +1,13 @@
+wycheproof_ecdsa.json is testvectors_v1/ecdsa_secp256k1_sha256_test.json from
+Project Wycheproof, vendored unchanged.
+
+    Upstream: https://github.com/C2SP/wycheproof
+    File:     testvectors_v1/ecdsa_secp256k1_sha256_test.json
+    Version:  google-wycheproof 0.9rc5, as stated in the file's own
+              testGroups[].source field
+    Copyright Google LLC and the Project Wycheproof contributors
+    Licensed under the Apache License, Version 2.0
+
+A copy of the Apache License 2.0 is in LICENSE-APACHE at the root of this
+repository. This file is test data only: it is compiled into
+`bitcoin-tools-vectors`, which is a dev-dependency and is never published.

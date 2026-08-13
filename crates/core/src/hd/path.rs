@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 use crate::keys::{Address, AddressKind, PublicKey, PublicKeyError};
 use crate::network::Network;
-use crate::parse::name_table;
+use crate::parse::{display_serialize, name_table};
 
 /// The bit that marks a child index as hardened.
 ///
@@ -141,18 +141,13 @@ impl fmt::Display for ChildNumber {
     }
 }
 
-/// `44'`, not `2147483692`.
-///
-/// The raw `u32` would be a correct transport and an unreadable one: nothing
-/// in the number says its top bit is a flag, so a consumer reading `0` and
-/// `2147483648` has to know the convention to see that they are the same
-/// index. Every other rendering in § 4 goes through `Display`; so does this.
-#[cfg(feature = "serde")]
-impl serde::Serialize for ChildNumber {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+// `44'`, not `2147483692`.
+//
+// The raw `u32` would be a correct transport and an unreadable one: nothing
+// in the number says its top bit is a flag, so a consumer reading `0` and
+// `2147483648` has to know the convention to see that they are the same
+// index. Every other rendering in § 4 goes through `Display`; so does this.
+display_serialize!(ChildNumber);
 
 impl FromStr for ChildNumber {
     type Err = ParseChildError;
@@ -235,13 +230,8 @@ impl std::error::Error for ParsePathError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct DerivationPath(Vec<ChildNumber>);
 
-/// The written form, `m/84'/0'/0'/0/0`.
-#[cfg(feature = "serde")]
-impl serde::Serialize for DerivationPath {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+// The written form, `m/84'/0'/0'/0/0`.
+display_serialize!(DerivationPath);
 
 impl DerivationPath {
     /// The empty path — the master key itself.

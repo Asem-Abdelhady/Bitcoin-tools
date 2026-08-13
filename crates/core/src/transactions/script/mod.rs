@@ -7,6 +7,7 @@ pub mod opcodes;
 pub use instruction::{DecodeError, Instruction, Instructions, Step};
 pub use opcodes::{Category, Opcode, alias, all};
 
+use crate::parse::display_serialize;
 use std::fmt;
 
 use crate::hex::{self, HexError};
@@ -61,14 +62,7 @@ impl fmt::Display for ScriptKind {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for ScriptKind {
-    /// Delegates to `Display`, so the JSON spelling and the printed spelling
-    /// are one definition rather than two that can drift apart.
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(ScriptKind);
 
 /// The template-specific parts of a standard script, pulled out by name.
 ///
@@ -180,7 +174,7 @@ impl Script {
     ///
     /// [`HexError`] if the input is not whole bytes of hex.
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
-        hex::decode(hex::normalize(s)).map(Script)
+        hex::decode_lenient(s).map(Script)
     }
 
     /// The raw bytes.
@@ -440,12 +434,7 @@ impl fmt::Display for Script {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Script {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Script);
 
 impl From<Vec<u8>> for Script {
     fn from(v: Vec<u8>) -> Self {

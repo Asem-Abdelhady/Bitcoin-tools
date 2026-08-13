@@ -149,7 +149,7 @@ impl BlockHeader {
     ///
     /// [`HeaderDecodeError`] for bad hex or the wrong number of bytes.
     pub fn from_hex(s: &str) -> Result<Self, HeaderDecodeError> {
-        Self::decode(&hex::decode(hex::normalize(s))?)
+        Self::decode(&hex::decode_lenient(s)?)
     }
 
     /// Decode the eighty consensus-serialized bytes.

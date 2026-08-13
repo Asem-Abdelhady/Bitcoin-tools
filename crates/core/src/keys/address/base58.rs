@@ -15,7 +15,7 @@ use crate::encoding::base58::{self, CHECKSUM_LEN};
 use crate::hashes::Hash;
 use crate::keys::address::AddressError;
 use crate::network::Network;
-use crate::parse::name_table;
+use crate::parse::{display_serialize, name_table};
 
 /// The digest a Base58 address commits to: twenty bytes of `HASH160`, either
 /// of a public key or of a redeem script.
@@ -260,12 +260,7 @@ impl FromStr for Base58Address {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Base58Address {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Base58Address);
 
 #[cfg(test)]
 mod tests {

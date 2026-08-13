@@ -220,7 +220,7 @@ impl Tx {
     ///
     /// [`TxDecodeError`] for bad hex or bytes that are not a transaction.
     pub fn from_hex(s: &str) -> Result<Self, TxDecodeError> {
-        let bytes = hex::decode(hex::normalize(s))?;
+        let bytes = hex::decode_lenient(s)?;
         Tx::decode(&bytes)
     }
 

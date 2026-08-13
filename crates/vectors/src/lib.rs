@@ -63,6 +63,29 @@ pub fn parse(raw: &str) -> Vec<Value> {
     }
 }
 
+/// RFC 6979 signing vectors: seven key/message pairs with the nonce and
+/// signature they determine.
+///
+/// `privateKey`, `message`, `k`, `r` and `s` are bitcoinjs-lib's published
+/// fixtures, which are the widely-mirrored secp256k1 set. The derived fields —
+/// `publicKey`, `messageHash`, `compact`, `der` — were computed by a separate
+/// scratch implementation of RFC 6979 and ECDSA that first reproduced every
+/// published `k`, `r` and `s`, so nothing here is this crate's own output
+/// written back as an expectation.
+pub const ECDSA: &str = include_str!("../data/ecdsa.json");
+
+/// Project Wycheproof's ECDSA/secp256k1/SHA-256 suite, transcribed unchanged.
+///
+/// 476 cases over 109 keys, of which **308 must be refused** — malformed DER,
+/// BER lengths, integers at the group order, edge-case hashes, and signatures
+/// that are simply wrong. That half is why it is here; a verifier that returns
+/// `true` unconditionally passes almost every other test in this repository.
+///
+/// Copyright Google LLC and the Wycheproof contributors, Apache-2.0. Unlike
+/// the other files here the top level is an object rather than an array, so it
+/// is read with [`wycheproof_ecdsa`] rather than [`parse`].
+pub const WYCHEPROOF_ECDSA: &str = include_str!("../data/wycheproof_ecdsa.json");
+
 /// A string field a vector is required to carry.
 ///
 /// `at` names the vector for the failure message — `"bip39[3]"`,
@@ -129,6 +152,25 @@ pub fn bip32_invalid() -> Vec<Value> {
 #[must_use]
 pub fn accounts() -> Vec<Value> {
     parse(ACCOUNTS)
+}
+
+/// [`ECDSA`], parsed.
+#[must_use]
+pub fn ecdsa() -> Vec<Value> {
+    parse(ECDSA)
+}
+
+/// [`WYCHEPROOF_ECDSA`], parsed — the whole document, groups and all.
+///
+/// # Panics
+///
+/// If the file is not a JSON object. See [`parse`].
+#[must_use]
+pub fn wycheproof_ecdsa() -> Value {
+    match serde_json::from_str(WYCHEPROOF_ECDSA) {
+        Ok(document @ Value::Object(_)) => document,
+        other => panic!("the Wycheproof file is not a JSON object: {other:?}"),
+    }
 }
 
 /// [`BLOCKS`], parsed.
@@ -223,6 +265,60 @@ mod tests {
         }
         let with_txids = blocks.iter().filter(|b| b["txids"].is_array()).count();
         assert_eq!(with_txids, 8, "eight blocks carry their transaction list");
+    }
+
+    /// The signing vectors are transcribed and the Wycheproof file is
+    /// vendored, so what is worth checking is that both arrived whole — and
+    /// that Wycheproof still contains the invalid half it is here for.
+    #[test]
+    fn the_crypto_vectors_are_whole() {
+        let ecdsa = ecdsa();
+        assert_eq!(ecdsa.len(), 7);
+        for (i, v) in ecdsa.iter().enumerate() {
+            for name in [
+                "privateKey",
+                "publicKey",
+                "message",
+                "messageHash",
+                "k",
+                "r",
+                "s",
+                "compact",
+                "der",
+            ] {
+                assert!(v[name].is_string(), "ecdsa[{i}] has no {name}");
+            }
+            let at = format!("ecdsa[{i}]");
+            assert_eq!(field(v, "privateKey", &at).len(), 64);
+            assert_eq!(field(v, "messageHash", &at).len(), 64);
+            assert_eq!(field(v, "compact", &at).len(), 128);
+            assert_eq!(
+                field(v, "compact", &at),
+                format!("{}{}", field(v, "r", &at), field(v, "s", &at)),
+                "{at}: the compact form is r then s"
+            );
+        }
+
+        let wycheproof = wycheproof_ecdsa();
+        let groups = wycheproof["testGroups"].as_array().expect("test groups");
+        let (mut valid, mut invalid) = (0, 0);
+        for group in groups {
+            assert!(group["publicKey"]["uncompressed"].is_string());
+            assert_eq!(group["sha"], "SHA-256");
+            for test in group["tests"].as_array().expect("tests") {
+                assert!(test["msg"].is_string() && test["sig"].is_string());
+                match test["result"].as_str() {
+                    Some("valid") => valid += 1,
+                    Some("invalid") => invalid += 1,
+                    other => panic!("unexpected Wycheproof result {other:?}"),
+                }
+            }
+        }
+        assert_eq!(
+            (valid, invalid),
+            (168, 308),
+            "476 cases, 308 of them refusals"
+        );
     }
 
     #[test]

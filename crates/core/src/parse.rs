@@ -161,4 +161,28 @@ macro_rules! name_table {
     (@canonical $canonical:literal $(, $alias:literal)*) => { $canonical };
 }
 
-pub(crate) use name_table;
+/// Give a type the serde `Serialize` that follows from its `Display`.
+///
+/// Fifteen types in this crate serialize as the string their `Display`
+/// produces, which is the crate's JSON convention: the wire spelling and the
+/// printed spelling are one definition rather than two that drift. Written by
+/// hand that is a six-line block with a `#[cfg(feature = "serde")]` above it,
+/// fifteen times — and the gate is the part that is easy to forget, because
+/// nothing notices until someone builds with `--no-default-features`.
+///
+/// `name_table!` already emits this impl for the enums it generates; this is
+/// the same impl for everything else. [`Hash<N>`](crate::hashes::Hash) keeps
+/// its own, being generic over a const parameter.
+macro_rules! display_serialize {
+    ($type:ty) => {
+        #[cfg(feature = "serde")]
+        impl ::serde::Serialize for $type {
+            /// The same spelling `Display` gives, so there is only one.
+            fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                s.collect_str(self)
+            }
+        }
+    };
+}
+
+pub(crate) use {display_serialize, name_table};
