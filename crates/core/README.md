@@ -59,7 +59,7 @@ src/
 │                           as_str / Display / FromStr / Unknown… for a named enum
 ├── hex.rs                ✓ encode, decode, normalize, write, {write,encode,decode}_rev, HexError
 ├── bytes.rs              ✓ Reader, ReadError, varint, pack_bits/unpack_bits
-│                           (Writer lands with 5.1)
+│                           (no Writer — see the note on write_varint)
 ├── network.rs            ✓ Network, UnknownNetwork
 ├── general/              ✓ § 1
 │   ├── reverse.rs        ✓ 1.1  wire order ⇄ display order
@@ -93,7 +93,7 @@ src/
 │   └── path.rs           ✓ 4.2  DerivationPath, BIP44/49/84/86
 ├── transactions/         ✓ § 5
 │   ├── tx.rs             ✓ 5.2  Tx, Txid, TxBreakdown
-│   ├── builder.rs          5.1  TxBuilder
+│   ├── builder.rs        ✓ 5.1  TxBuilder, TxKind, BuildError
 │   └── script/           ✓ 5.3  Script, Opcode, Instruction
 └── blocks/               ✓ § 6
     ├── header.rs         ✓ 6.2  BlockHeader, HeaderBreakdown; 6.1 BlockHash
@@ -163,7 +163,7 @@ exposed as the feature described. **Planned** — not written.
 
 | | Feature | Status | Notes |
 |---|---|---|---|
-| 5.1 | Transaction Builder | Planned | Type, version, inputs, outputs → raw hex a node accepts. `Tx::encode` is the serialization half already. |
+| 5.1 | Transaction Builder | **Done** | Type, version, inputs, outputs → a `Tx`, which already knows how to serialize itself. `TxBuilder` is validation, not a second encoder: it refuses the combinations that serialize cleanly and are still rejected by every node — no inputs, no outputs, a duplicated outpoint, the null (coinbase) outpoint, a value or total above 21 million, both halves of BIP144's rule (segwit with nothing in the witness, legacy with something in it), and `bad-txns-oversize` — which is measured on the **witness-stripped** size times four, so the ceiling is 1,000,000 base bytes rather than 4,000,000 total. Each check cites the Core rule it mirrors. That last one brought `Tx::base_size`, `total_size`, `weight` and `vsize` with it, all counted through `varint_len` rather than serialized, so asking how big a transaction is does not build one. It does **not** sign: a signature commits to a sighash, and a sighash needs the value and script of every output being spent, which a raw transaction does not carry. Verified by rebuilding all 22 vectors byte for byte. |
 | 5.2 | Transaction Splitter | **Done** | `Tx::decode` + `Tx::breakdown` — every wire field as the hex bytes it occupies. Verified against 22 mainnet vectors. `Output::value` is an `Amount` (1.3), unvalidated: the wire carries a `u64` and a malformed transaction may declare more than will ever exist. |
 | 5.3 | Script | **Done** | All 256 opcodes, a lossless instruction decoder, template classification, field extraction. |
 
@@ -212,7 +212,7 @@ additive.
 | Feature | Default | What it adds |
 |---|---|---|
 | `rand` | no | `PrivateKey::generate`. Off by default: inspecting a key has no reason to link an RNG, and a tool that only decodes should not be able to mint a secret by accident. |
-| `serde` | yes | `Serialize` on the value types a caller renders, plus `Deserialize` on the few that are *inputs* — `Network` and `Base` name a choice a request makes, so they have to be read as well as written. The web server needs this; a CLI turns it off and uses `FromStr`, which every one of those types also has. |
+| `serde` | yes | `Serialize` on the value types a caller renders, plus `Deserialize` on the few that are *inputs* — `Network`, `Base`, `Denomination` and `TxKind` each name a choice a request makes, so they have to be read as well as written. The web server needs this; a CLI turns it off and uses `FromStr`, which every one of those types also has. |
 
 Anything gated must also compile without it:
 
@@ -306,6 +306,12 @@ shared with the server so both assert against identical bytes.
 for 5.3, `hd_vectors.rs` for all of § 4, `block_vectors.rs` for § 6 and
 `crypto_vectors.rs` for § 7 — each asserts against the vector files, never
 against a restated expectation.
+
+5.1 has no vectors of its own and does not need any: `tx_vectors.rs` decodes
+each of the 22 real transactions, feeds the fields back through `TxBuilder`,
+and compares the bytes. A builder that dropped a sequence number or reordered
+the outputs would still produce a decodable transaction — it would not produce
+*that* one.
 
 § 7's verification half is Project Wycheproof's ECDSA suite, vendored unchanged
 (copyright Google LLC and contributors, Apache-2.0). Its 308 refusals are the

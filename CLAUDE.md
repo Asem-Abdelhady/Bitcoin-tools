@@ -19,8 +19,18 @@ now a build error.
 | Layer | Path | Responsibility |
 |---|---|---|
 | Routes | `crates/server/src/routes/` | URL and method binding, transport limits |
-| Handlers | `crates/server/src/handlers/` | Transport: extraction, DTOs, status codes |
+| Handlers | `crates/server/src/handlers/` | Transport: extraction, response views, status codes |
 | Services | `crates/server/src/services/` | Use cases and input policy; **no HTTP** |
+
+"DTO" splits in two, and the split follows the responsibilities above.
+A **response** is a view — it renders domain values into strings and decides
+what a client sees — so it lives with the handler (`SplitTxResponse`,
+`BuildTxResponse`). A **request shape** is input policy — which fields exist,
+which are optional, `camelCase`, `deny_unknown_fields` — so it lives with the
+service that validates it (`TxSpec`). `serde` is a serialization crate, not a
+transport one; `core` derives it too, and a mirrored pair of structs with an
+identity `From` between them is four edits per field with the compiler
+catching three.
 
 Core's own layering (L0–L4, nothing imports upward) is in its README.
 
@@ -92,6 +102,13 @@ they are what keep the two reviews independent.
 - Generic `/tools` endpoints share `HexRequest { hex: String }` rather than each
   inventing a key. A caller should not need a lookup table for an API with one
   input shape.
+- An endpoint whose input is a *structure* rather than one payload says so with
+  named fields: `/transactions/builder` takes
+  `{"type", "version", "lockTime", "inputs": [...], "outputs": [...]}`. Optional
+  fields carry the domain's own defaults (version 2, locktime 0, sequence
+  `0xffffffff`, empty scriptSig) and `type` is required, because the
+  serialization changes the bytes, the txid, and whether a witness survives at
+  all — that is not a default anyone should inherit silently.
 - All request DTOs use `deny_unknown_fields`.
 
 ### JSON
@@ -119,10 +136,26 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `unsupported-media-type` | 415 | Missing or wrong `Content-Type` |
 | `unreadable-body` | 413 / 400 | Body could not be buffered: 413 past the route's transport cap, 400 if the stream failed |
 | `invalid-transaction` | 400 | Valid hex, not a transaction |
+| `invalid-txid` | 400 | A `txid` field was not 32 bytes of hex |
+| `no-inputs` | 400 | A build request spends nothing |
+| `no-outputs` | 400 | A build request pays nothing |
+| `duplicate-input` | 400 | Two inputs name the same outpoint |
+| `null-prevout` | 400 | An input spends the null outpoint, which only a coinbase may do |
+| `amount-out-of-range` | 400 | An output value, or the total, is above 21M BTC |
+| `segwit-without-witness` | 400 | `type: segwit` with no witness data — BIP144 requires the legacy encoding |
+| `witness-on-legacy` | 400 | `type: legacy` with witness data, which that encoding cannot hold |
+| `transaction-too-large` | 413 | The *built* transaction is past the domain size cap |
 | `not-found` | 404 | No endpoint at this path |
 | `method-not-allowed` | 405 | Endpoint exists, wrong method |
 | `not-implemented` | 501 | Route wired up, no implementation yet |
 | `bad-request` | varies | Catch-all for `JsonRejection` variants added by a future axum release; `JsonRejection` is `#[non_exhaustive]`. Seeing this means the mapping in `handlers::error` needs a new arm. |
+
+The builder's slugs are per-rule rather than one `invalid-transaction`,
+because each names a different mistake in the caller's request and a client
+branching on them can say which field to fix. A field-level hex problem inside
+a build request keeps the slug it has everywhere else (`invalid-hex`,
+`input-too-large`) and adds the position to the message, so clients do not
+learn two vocabularies for one failure.
 
 Note one endpoint can return 413 under two slugs: `unreadable-body` is the
 transport cap rejecting the request before the handler runs,

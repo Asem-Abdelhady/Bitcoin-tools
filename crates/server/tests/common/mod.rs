@@ -45,6 +45,17 @@ pub async fn post_json(uri: &str, body: &str) -> (StatusCode, Value) {
     .await
 }
 
+/// `POST uri` with a JSON body, requiring 200 and returning the response.
+///
+/// Every endpoint's happy path is this same three lines, and the failure
+/// message has to carry the body or a red test says only "expected 200, got
+/// 400" about an endpoint whose whole job is explaining what was wrong.
+pub async fn post_ok(uri: &str, body: &Value) -> Value {
+    let (status, body) = post_json(uri, &body.to_string()).await;
+    assert_eq!(status, StatusCode::OK, "unexpected status; body = {body}");
+    body
+}
+
 /// `POST uri` with no `Content-Type`, which axum rejects with 415.
 pub async fn post_without_content_type(uri: &str, body: &str) -> (StatusCode, Value) {
     send(

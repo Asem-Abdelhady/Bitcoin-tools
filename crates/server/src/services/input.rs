@@ -58,10 +58,30 @@ pub fn hex_bytes(
     subject: &'static str,
     max_bytes: usize,
 ) -> Result<Vec<u8>, InputError> {
-    let trimmed = hex::normalize(input);
-    if trimmed.is_empty() {
+    if hex::normalize(input).is_empty() {
         return Err(InputError::Empty { subject });
     }
+    hex_bytes_allowing_empty(input, subject, max_bytes)
+}
+
+/// The same, for a field where empty is a real value rather than a mistake.
+///
+/// Most endpoints take one hex payload and an empty one is a caller error —
+/// there is nothing to decode. A transaction's *parts* are not like that:
+/// an unsigned input has an empty `scriptSig`, so does every native segwit
+/// input, a witness stack can carry an empty item as a placeholder, and an
+/// output may carry an empty (unspendable) script. Refusing those would make
+/// the builder unable to express ordinary transactions.
+///
+/// Splitting this from [`hex_bytes`] rather than adding a flag keeps the
+/// decision at the call site, where the field is named and the answer is
+/// obvious, instead of behind a boolean nobody reads.
+pub fn hex_bytes_allowing_empty(
+    input: &str,
+    subject: &'static str,
+    max_bytes: usize,
+) -> Result<Vec<u8>, InputError> {
+    let trimmed = hex::normalize(input);
     if trimmed.len() > max_bytes * 2 {
         return Err(InputError::TooLarge {
             subject,

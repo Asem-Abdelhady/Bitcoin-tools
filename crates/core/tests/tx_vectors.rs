@@ -10,6 +10,8 @@
 //! never a stale copy of what the decoder used to do.
 
 use bitcoin_tools_core::general::reverse_hex;
+use bitcoin_tools_core::hex;
+use bitcoin_tools_core::transactions::builder::TxBuilder;
 use bitcoin_tools_core::transactions::tx::{Tx, TxBreakdown};
 use bitcoin_tools_vectors::{field, legacy, segwit};
 use serde_json::Value;
@@ -191,5 +193,89 @@ fn a_displayed_txid_parses_back_to_itself() {
             bitcoin_tools_core::hex::encode(&tx.txid().to_wire()),
             "vector[{i}]: display order equals wire order — one of them is wrong"
         );
+    }
+}
+
+/// 5.1 against 5.2: every vector, taken apart and put back together.
+///
+/// The builder's acceptance criterion is that it can express a real
+/// transaction, so each vector is decoded, rebuilt through
+/// [`TxBuilder::from_tx`] — the call a consumer actually makes — and compared
+/// *byte for byte* with what came off the wire. A builder that dropped a
+/// sequence number, reordered the outputs or lost a witness item would still
+/// produce a decodable transaction; it would not produce this one.
+///
+/// The load-bearing half is the acceptance: twenty-two real transactions,
+/// both kinds, both versions, non-zero locktimes and every sequence style in
+/// use, have to pass all eight of `build`'s rules. None is a coinbase, which
+/// is what lets `NullPrevout` be unconditional.
+#[test]
+fn every_vector_rebuilds_byte_for_byte() {
+    let mut rebuilt = 0;
+
+    for (label, set) in [("legacy", legacy()), ("segwit", segwit())] {
+        for (i, vector) in set.iter().enumerate() {
+            let at = format!("{label}[{i}]");
+            let raw = field(vector, "rawTx", &at);
+            let original = Tx::from_hex(raw).unwrap_or_else(|e| panic!("{at}: {e}"));
+
+            let built = TxBuilder::from_tx(&original)
+                .build()
+                .unwrap_or_else(|e| panic!("{at}: a real transaction was refused: {e}"));
+
+            assert_eq!(built, original, "{at}");
+            assert_eq!(
+                hex::encode(&built.encode()),
+                raw,
+                "{at}: rebuilt bytes differ from the wire"
+            );
+            assert_eq!(built.txid().to_string(), field(vector, "txid", &at), "{at}");
+            rebuilt += 1;
+        }
+    }
+
+    assert_eq!(rebuilt, 22, "both vector sets, every transaction");
+}
+
+/// The sizes are counted rather than serialized, so they are only right if
+/// they agree with the serialization they claim to describe — which the
+/// vectors provide for both encodings.
+#[test]
+fn the_counted_sizes_match_the_bytes() {
+    for (label, set) in [("legacy", legacy()), ("segwit", segwit())] {
+        for (i, vector) in set.iter().enumerate() {
+            let at = format!("{label}[{i}]");
+            let tx =
+                Tx::from_hex(field(vector, "rawTx", &at)).unwrap_or_else(|e| panic!("{at}: {e}"));
+
+            assert_eq!(tx.total_size(), tx.encode().len(), "{at}: total size");
+            assert_eq!(
+                tx.base_size(),
+                tx.encode_legacy().len(),
+                "{at}: base size is the witness-stripped one"
+            );
+            assert_eq!(
+                tx.weight(),
+                tx.base_size() * 3 + tx.total_size(),
+                "{at}: BIP141"
+            );
+            assert_eq!(tx.vsize(), tx.weight().div_ceil(4), "{at}");
+
+            if tx.segwit {
+                assert!(
+                    tx.base_size() < tx.total_size(),
+                    "{at}: the witness costs bytes"
+                );
+                assert!(
+                    tx.vsize() < tx.total_size(),
+                    "{at}: and they are discounted"
+                );
+            } else {
+                assert_eq!(tx.base_size(), tx.total_size(), "{at}");
+                assert_eq!(tx.weight(), tx.total_size() * 4, "{at}");
+            }
+            assert!(!tx.is_coinbase(), "{at}: no vector is a coinbase");
+            assert!(tx.is_bip144_canonical(), "{at}");
+        }
     }
 }
