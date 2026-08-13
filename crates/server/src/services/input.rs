@@ -86,7 +86,12 @@ pub fn hex_bytes_allowing_empty(
         return Err(InputError::TooLarge {
             subject,
             max_bytes,
-            got_bytes: trimmed.len() / 2,
+            // Rounded *up*: an odd number of hex digits is not whole bytes, and
+            // truncating produced a message that contradicted itself — 161
+            // digits against an 80-byte cap read "is 80 bytes; the maximum is
+            // 80". The size check runs before decoding, so this is the only
+            // place that number is ever computed from a half-byte.
+            got_bytes: trimmed.len().div_ceil(2),
         });
     }
     Ok(hex::decode(trimmed)?)
@@ -119,6 +124,27 @@ mod tests {
                 max_bytes: 10,
                 got_bytes: 11
             }
+        );
+    }
+
+    /// An odd number of digits is not whole bytes, and the cap is checked
+    /// before decoding — so the reported size has to round up or the message
+    /// contradicts itself.
+    #[test]
+    fn an_oversized_odd_length_input_does_not_report_the_cap_as_its_size() {
+        let err = hex_bytes(&format!("{}0", "00".repeat(10)), "block header", 10).unwrap_err();
+        assert_eq!(
+            err,
+            InputError::TooLarge {
+                subject: "block header",
+                max_bytes: 10,
+                got_bytes: 11
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "block header is 11 bytes; the maximum is 10",
+            "never 'is 10 bytes; the maximum is 10'"
         );
     }
 

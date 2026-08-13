@@ -1,5 +1,6 @@
 //! URL and method binding. Nothing here should contain logic.
 
+pub mod blocks;
 pub mod transactions;
 
 /// Room for a hex payload of `max_bytes` plus the JSON envelope around it.

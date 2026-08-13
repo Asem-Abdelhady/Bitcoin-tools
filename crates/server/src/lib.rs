@@ -10,6 +10,7 @@ use axum::Router;
 /// do — a mistyped `nest` prefix should fail a test, not ship.
 pub fn app() -> Router {
     Router::new()
+        .nest("/blocks", routes::blocks::router())
         .nest("/transactions", routes::transactions::router())
         .fallback(handlers::error::not_found)
         .method_not_allowed_fallback(handlers::error::method_not_allowed)
