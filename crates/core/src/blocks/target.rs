@@ -14,6 +14,7 @@
 //! | [`Target`] | `000000000004864c0000…` | the threshold the hash must come under |
 //! | [`CompactTarget::difficulty`] | `14484.16` | that threshold against the easiest one |
 
+use crate::parse::display_serialize;
 use std::fmt;
 use std::str::FromStr;
 
@@ -225,19 +226,14 @@ impl FromStr for CompactTarget {
     /// [`Hash::from_hex`](crate::hashes::Hash::from_hex) refuses a short
     /// digest instead of padding it.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = hex::decode(hex::normalize(s))?;
+        let bytes = hex::decode_lenient(s)?;
         <[u8; 4]>::try_from(&bytes[..])
             .map(|bytes| CompactTarget(u32::from_be_bytes(bytes)))
             .map_err(|_| ParseCompactTargetError::WrongLength { got: bytes.len() })
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for CompactTarget {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(CompactTarget);
 
 /// Why a string was not a compact target.
 ///
@@ -397,12 +393,7 @@ impl fmt::Display for Target {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Target {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Target);
 
 #[cfg(test)]
 mod tests {

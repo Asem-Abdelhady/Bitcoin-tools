@@ -3,6 +3,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use crate::crypto::ecdsa::{self, Signature};
 use crate::crypto::secp::{SCALAR_SIZE, ScalarError, SecretScalar};
 use crate::encoding::base58::{self, Base58Error};
 use crate::general::Number;
@@ -190,7 +191,7 @@ impl PrivateKey {
     /// [`PrivateKeyError`] for bad hex, a length other than 32 bytes, or a
     /// value outside `1..n`.
     pub fn from_hex(s: &str, network: Network, compressed: bool) -> Result<Self, PrivateKeyError> {
-        let bytes = hex::decode(hex::normalize(s))?;
+        let bytes = hex::decode_lenient(s)?;
         let array: [u8; SCALAR_SIZE] = bytes
             .as_slice()
             .try_into()
@@ -248,6 +249,21 @@ impl PrivateKey {
     #[must_use]
     pub const fn scalar(&self) -> &SecretScalar {
         &self.scalar
+    }
+
+    /// 7.1 — sign a 32-byte hash with this key.
+    ///
+    /// A forward to [`ecdsa::sign`], which is where the operation and its
+    /// documentation live; it is here because "sign a hash with a private key"
+    /// is the shape a caller holding a WIF key is looking for, and
+    /// [`PrivateKey::scalar`] is the layer below it.
+    ///
+    /// The hash is a *hash* — a sighash, or a message digest. Nothing here
+    /// hashes anything for you, deliberately: see the
+    /// [module docs](crate::crypto::ecdsa).
+    #[must_use]
+    pub fn sign(&self, message_hash: &[u8; ecdsa::MESSAGE_SIZE]) -> Signature {
+        ecdsa::sign(message_hash, &self.scalar)
     }
 
     /// The public key this derives.
@@ -393,6 +409,40 @@ mod tests {
             .unwrap()
             .to_wif();
         assert!(testnet.starts_with('9'), "got {testnet}");
+    }
+
+    /// The two forwards in §§ 7.1 and 7.2 meet here: what a private key signs,
+    /// its own public key verifies, and no other key does.
+    #[test]
+    fn a_key_pair_signs_and_verifies_at_the_key_level() {
+        let key = PrivateKey::from_hex(
+            "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d",
+            Network::Mainnet,
+            true,
+        )
+        .expect("a valid key");
+        let hash = [0x42u8; 32];
+
+        let signature = key.sign(&hash);
+        assert!(key.public_key().verify(&hash, &signature));
+
+        // The compression flag is an address decision, not an arithmetic one,
+        // so the same signature verifies against either spelling of the key.
+        let uncompressed = PrivateKey::from_scalar(key.scalar().clone(), Network::Mainnet, false);
+        assert_ne!(
+            uncompressed.public_key().to_bytes(),
+            key.public_key().to_bytes()
+        );
+        assert!(uncompressed.public_key().verify(&hash, &signature));
+
+        // A different key does not verify it.
+        let other = PrivateKey::from_hex(
+            "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1e",
+            Network::Mainnet,
+            true,
+        )
+        .expect("a valid key");
+        assert!(!other.public_key().verify(&hash, &signature));
     }
 
     #[test]

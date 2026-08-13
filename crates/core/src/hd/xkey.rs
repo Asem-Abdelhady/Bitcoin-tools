@@ -10,6 +10,7 @@
 //! children and [`Xpub`] cannot, so an xpub can be handed to a watch-only
 //! wallet that generates addresses forever and learns nothing.
 
+use crate::parse::display_serialize;
 use std::fmt;
 use std::str::FromStr;
 
@@ -102,7 +103,7 @@ impl ChainCode {
     /// [`Bip32Error::Hex`] for bad hex, [`Bip32Error::WrongLength`] for any
     /// length but 32.
     pub fn from_hex(s: &str) -> Result<Self, Bip32Error> {
-        let bytes = hex::decode(hex::normalize(s))?;
+        let bytes = hex::decode_lenient(s)?;
         let array: [u8; CHAIN_CODE_SIZE] = bytes
             .as_slice()
             .try_into()
@@ -117,15 +118,10 @@ impl fmt::Display for ChainCode {
     }
 }
 
-/// Hex, as [`Display`](fmt::Display) gives it. A chain code belonging to an
-/// *xpub* is not a secret — it is already inside the string — and rendering it
-/// is what a tool showing an extended key's fields does.
-#[cfg(feature = "serde")]
-impl serde::Serialize for ChainCode {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+// Hex, as [`Display`](fmt::Display) gives it. A chain code belonging to an
+// *xpub* is not a secret — it is already inside the string — and rendering it
+// is what a tool showing an extended key's fields does.
+display_serialize!(ChainCode);
 
 /// The first four bytes of a key's identifier, used to point at its parent.
 ///
@@ -172,13 +168,8 @@ impl fmt::Display for Fingerprint {
     }
 }
 
-/// Hex, as [`Display`](fmt::Display) gives it.
-#[cfg(feature = "serde")]
-impl serde::Serialize for Fingerprint {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+// Hex, as [`Display`](fmt::Display) gives it.
+display_serialize!(Fingerprint);
 
 /// Why an extended key could not be built, derived or read.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -950,12 +941,7 @@ impl FromStr for Xpub {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Xpub {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Xpub);
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,10 @@
 //! § 3.2 — Public keys.
 
+use crate::parse::display_serialize;
 use std::fmt;
 use std::str::FromStr;
 
+use crate::crypto::ecdsa::{self, Signature};
 use crate::crypto::secp::{
     COMPRESSED_SIZE, Point, PointError, SCALAR_SIZE, TweakError, UNCOMPRESSED_SIZE,
 };
@@ -128,7 +130,7 @@ impl PublicKey {
     /// # Ok::<_, bitcoin_tools_core::keys::PublicKeyError>(())
     /// ```
     pub fn from_hex(s: &str) -> Result<Self, PublicKeyError> {
-        let bytes = hex::decode(hex::normalize(s))?;
+        let bytes = hex::decode_lenient(s)?;
         PublicKey::from_sec1(&bytes)
     }
 
@@ -137,6 +139,20 @@ impl PublicKey {
     #[must_use]
     pub const fn point(&self) -> Point {
         self.point
+    }
+
+    /// 7.2 — does `signature` verify against this key and this hash?
+    ///
+    /// A forward to [`ecdsa::verify`], which documents what the answer means —
+    /// in particular that it is the arithmetic question, and that
+    /// [`Signature::is_low_s`] is the separate policy one.
+    ///
+    /// The compression flag plays no part: `02…`, `03…` and `04…` spellings of
+    /// the same point verify the same signatures. It changes the *address*,
+    /// which is why this type keeps it, and never the arithmetic.
+    #[must_use]
+    pub fn verify(&self, message_hash: &[u8; ecdsa::MESSAGE_SIZE], signature: &Signature) -> bool {
+        ecdsa::verify(message_hash, signature, &self.point)
     }
 
     /// The `(x, y)` coordinates, 32 bytes each.
@@ -294,12 +310,7 @@ impl FromStr for PublicKey {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for PublicKey {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(PublicKey);
 
 #[cfg(test)]
 mod tests {

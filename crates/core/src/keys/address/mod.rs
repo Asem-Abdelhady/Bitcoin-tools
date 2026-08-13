@@ -50,7 +50,7 @@ use crate::encoding::base58::Base58Error;
 use crate::encoding::bech32::{Bech32Error, SEPARATOR, Variant};
 use crate::hashes::Hash;
 use crate::network::Network;
-use crate::parse::name_table;
+use crate::parse::{display_serialize, name_table};
 
 pub use base58::{AddressHash, Base58Address, Base58Kind, Base58Parts};
 pub use segwit::{SegwitAddress, SegwitParts, WitnessVersion};
@@ -417,12 +417,7 @@ impl FromStr for Address {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Address {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(Address);
 
 #[cfg(test)]
 mod tests {

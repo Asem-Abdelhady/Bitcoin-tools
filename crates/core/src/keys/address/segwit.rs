@@ -12,6 +12,7 @@
 //! rejects unknown versions cannot pay to a soft fork that has not happened
 //! yet.
 
+use crate::parse::display_serialize;
 use std::fmt;
 use std::str::FromStr;
 
@@ -361,12 +362,7 @@ impl FromStr for SegwitAddress {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for SegwitAddress {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
-    }
-}
+display_serialize!(SegwitAddress);
 
 #[cfg(test)]
 mod tests {
