@@ -8,7 +8,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-bitcoin-tools-core.workspace = true
+# `rand` is off by default in core, deliberately: "a tool that only inspects
+# should not be able to mint a secret by accident". `/keys/generate` is that
+# accident made on purpose, so the server opts in and nothing else has to.
+bitcoin-tools-core = { workspace = true, features = ["rand"] }
 
 axum.workspace = true
 serde.workspace = true

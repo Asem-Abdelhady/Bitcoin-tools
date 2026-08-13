@@ -7,7 +7,7 @@
 #![allow(dead_code)]
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode, header};
+use axum::http::{HeaderMap, Request, StatusCode, header};
 use bitcoin_tools_web_server::app;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -54,6 +54,24 @@ pub async fn post_ok(uri: &str, body: &Value) -> Value {
     let (status, body) = post_json(uri, &body.to_string()).await;
     assert_eq!(status, StatusCode::OK, "unexpected status; body = {body}");
     body
+}
+
+/// The response *headers* for a POST, which `send` otherwise discards.
+///
+/// Almost every endpoint's contract is entirely in its body. `/keys/generate`
+/// is the exception — its body is a credential, so `Cache-Control` is part of
+/// what it promises, and a header is exactly the kind of thing that gets
+/// refactored away without anyone noticing.
+pub async fn post_json_headers(uri: &str, body: &Value) -> HeaderMap {
+    let request = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let response = app().oneshot(request).await.expect("router responds");
+    assert_eq!(response.status(), StatusCode::OK, "{uri} did not succeed");
+    response.headers().clone()
 }
 
 /// `POST uri` with no `Content-Type`, which axum rejects with 415.

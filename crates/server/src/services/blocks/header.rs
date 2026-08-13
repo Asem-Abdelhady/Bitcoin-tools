@@ -8,7 +8,7 @@
 use serde::Deserialize;
 
 use crate::services::error::ServiceError;
-use crate::services::input::{InputError, hex_bytes};
+use crate::services::input::hex_bytes_exact;
 use bitcoin_tools_core::blocks::{BlockHeader, HeaderDecodeError};
 
 /// The noun this endpoint's messages use for its input.
@@ -34,34 +34,15 @@ pub type HeaderServiceError = ServiceError<HeaderDecodeError>;
 
 /// Validate a hex block header and decode it.
 ///
-/// # A fixed width has no "too large"
-///
-/// A header is eighty bytes exactly, so a byte over and a byte under are the
-/// same mistake — the domain says so itself, and both directions answer with
-/// [`WrongLength`](HeaderDecodeError::WrongLength) and one 400.
-///
-/// That takes one relabelling. [`hex_bytes`] is still what decides the input
-/// is usable, but its size cap means "past this endpoint's ceiling", which is
-/// what an oversized script or transaction is; here the same condition means
-/// "not the width", so it is handed to the error that names the width.
-/// Otherwise a client wanting to say "a block header is eighty bytes" would
-/// have to branch on two slugs, one of which (`input-too-large`) elsewhere
-/// means a 10 kB script or a 1 MB transaction. `/transactions/builder` already
-/// settled this for its fixed-width `txid` field: wrong length in either
-/// direction is one `invalid-txid`.
-///
-/// If a third fixed-width endpoint appears — and § 7's keys and signatures are
-/// all fixed-width — this becomes `services::input::hex_bytes_exact` rather
-/// than a third copy of the match.
+/// A header is eighty bytes exactly, so both ways to miss that are one
+/// mistake with one answer — see [`hex_bytes_exact`], which is where that rule
+/// lives now that three endpoints share it.
 pub fn decode(request: &BlockHeaderRequest) -> Result<BlockHeader, HeaderServiceError> {
-    let bytes = hex_bytes(&request.header, SUBJECT, BlockHeader::SIZE).map_err(|e| match e {
-        InputError::TooLarge { got_bytes, .. } => {
-            ServiceError::Domain(HeaderDecodeError::WrongLength {
-                got: got_bytes,
-                expected: BlockHeader::SIZE,
-            })
+    let bytes: [u8; BlockHeader::SIZE] = hex_bytes_exact(&request.header, SUBJECT, |got| {
+        HeaderDecodeError::WrongLength {
+            got,
+            expected: BlockHeader::SIZE,
         }
-        other => ServiceError::Input(other),
     })?;
     BlockHeader::decode(&bytes).map_err(ServiceError::Domain)
 }

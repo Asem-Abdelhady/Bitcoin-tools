@@ -110,6 +110,24 @@ pub async fn method_not_allowed() -> Response {
     )
 }
 
+/// For an endpoint that can only fail at the body.
+///
+/// `/keys/generate` reads two optional flags and draws from an RNG — past
+/// `Json` extraction there is nothing left to reject. Declaring
+/// `ApiRejection<Infallible>` says that in the type, and the compiler enforces
+/// it: the day that endpoint grows a failure, this stops compiling rather than
+/// letting a real error be mapped onto a status somebody guessed. Every method
+/// here is unreachable by construction, which is what `match *self {}` means.
+impl ApiError for std::convert::Infallible {
+    fn status(&self) -> StatusCode {
+        match *self {}
+    }
+
+    fn slug(&self) -> &'static str {
+        match *self {}
+    }
+}
+
 /// A route that is wired up but has no implementation yet.
 #[derive(Debug)]
 pub struct NotImplemented(pub &'static str);
