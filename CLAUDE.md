@@ -42,6 +42,7 @@ Core's own layering (L0–L4, nothing imports upward) is in its README.
 | `routes::body_limit(max)` | Per-route transport cap, sized from the domain constant. Required on any route taking hex. |
 | `bitcoin_tools_core::hex` | The only hex codec: `encode`, `decode`, `normalize`, `HexError`. |
 | `services::input::hex_bytes` | The only definition of "usable hex input": trim, `0x`, empty, size cap. |
+| `services::input::hex_bytes_exact` | The same, for a field of one fixed width. Both directions of the width become *your* domain error, so the endpoint keeps a slug named for what it parses. |
 | `services::error::ServiceError<E>` | `Input`-or-`Domain`. State only your own parse error type. |
 | `handlers::error` | `ApiError` trait + `ApiRejection<E>`. `IntoResponse`, the JSON envelope, `JsonRejection` mapping, and the 404/405 fallbacks are all implemented once. |
 | `tests/common::assert_transport_contract` | The four assertions every JSON endpoint owes a client — unknown field, broken body, missing `Content-Type`, wrong method. A suite asserts its *domain*; the transport half is one line. |
@@ -118,8 +119,12 @@ they are what keep the two reviews independent.
   all — that is not a default anyone should inherit silently.
 - All request DTOs use `deny_unknown_fields`, and all of them live in their
   service — `TxSpec`, `SplitTxRequest`, `AnalyzeScriptRequest`,
-  `BlockHeaderRequest`. No exceptions left; a request shape in a handler is
-  drift, not variation.
+  `BlockHeaderRequest`, `GenerateKeyRequest`, `PublicKeyRequest`. No exceptions
+  left; a request shape in a handler is drift, not variation.
+- `network` and `compressed` default to mainnet and compressed, from
+  `services::keys` so the two key endpoints cannot drift. The domain
+  deliberately gives `Network` no `Default` — picking one is a transport
+  decision, not a domain fact.
 
 ### JSON
 
@@ -148,6 +153,7 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `invalid-transaction` | 400 | Valid hex, not a transaction |
 | `invalid-block-header` | 400 | Valid hex, but not the 80 bytes a header is |
 | `invalid-txid` | 400 | A `txid` field was not 32 bytes of hex |
+| `invalid-private-key` | 400 | Not 32 bytes, or 32 bytes that are not a scalar (zero, or at/above the group order) |
 | `no-inputs` | 400 | A build request spends nothing |
 | `no-outputs` | 400 | A build request pays nothing |
 | `duplicate-input` | 400 | Two inputs name the same outpoint |
@@ -173,15 +179,14 @@ transport cap rejecting the request before the handler runs,
 `input-too-large` is the service rejecting the decoded value. Both are real and
 the distinction is worth keeping, but document it for clients.
 
-A **fixed-width** input has no "too large". `/blocks/*` takes exactly 80 bytes,
-so a byte over and a byte under are one mistake and get one answer:
-`invalid-block-header`, 400, in both directions. `hex_bytes` still decides the
-input is usable, but its `TooLarge` is relabelled to the domain's wrong-length
-error, because `input-too-large` elsewhere means a 10 kB script or a 1 MB
-transaction and a client should not learn two vocabularies for one failure —
-the same rule the builder follows for a wrong-length `txid`. A third
-fixed-width endpoint (§ 7's keys and signatures are all fixed-width) should
-promote this to `services::input::hex_bytes_exact` rather than copy the match.
+A **fixed-width** input has no "too large", and `services::input::hex_bytes_exact`
+is where that rule lives. A block header is 80 bytes and a private key is 32, so
+a byte over and a byte under are one mistake with one answer —
+`invalid-block-header` or `invalid-private-key`, 400, in both directions,
+carrying the size actually sent. `input-too-large` elsewhere means a 10 kB
+script or a 1 MB transaction, and a client should not learn two vocabularies for
+one failure; the builder settled this for its wrong-length `txid`. Pass the
+helper a closure building your own error and it handles both directions.
 
 A malformed *request* is 4xx. Malformed *data* the request asked about is a
 judgement call: a broken script returns 200 with an `error` field, because

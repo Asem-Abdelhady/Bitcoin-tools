@@ -8,6 +8,8 @@ use std::fmt;
 
 use bitcoin_tools_core::hex::{self, HexError};
 
+use crate::services::error::ServiceError;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputError {
     /// `subject` names what was expected, so messages read naturally at
@@ -97,9 +99,107 @@ pub fn hex_bytes_allowing_empty(
     Ok(hex::decode(trimmed)?)
 }
 
+/// Decode a hex field that must be an exact number of bytes.
+///
+/// Most inputs have a *ceiling* — a script up to 10,000 bytes, a transaction up
+/// to 1,000,000 — and for those [`hex_bytes`] is the whole story. A header, a
+/// private key, a signature and a txid are not like that: they are one width,
+/// and "too long" is not a different mistake from "too short". Splitting them
+/// across `input-too-large` (413) and a domain error (400) would make a client
+/// branch on two slugs to say one sentence, and `input-too-large` elsewhere
+/// means a 10 kB script — a vocabulary that would then mean two things.
+///
+/// So both directions become the caller's own error, built by `wrong_width`
+/// from the size actually supplied. The endpoint keeps a slug named for what it
+/// parses (`invalid-block-header`, `invalid-private-key`) instead of borrowing
+/// one that means something else.
+///
+/// The cap is still applied before decoding, so an enormous payload is refused
+/// without allocating for it.
+///
+/// The width is a const parameter and the return is an array, so a caller that
+/// needs `[u8; 32]` gets one — no `try_into`, and no `expect` asserting an
+/// invariant that lives in this function. Callers state it as a type
+/// annotation:
+///
+/// ```
+/// use bitcoin_tools_web_server::services::error::ServiceError;
+/// use bitcoin_tools_web_server::services::input::hex_bytes_exact;
+///
+/// let bytes: [u8; 4] = hex_bytes_exact("aabbccdd", "widget", |got| format!("got {got}"))?;
+/// assert_eq!(bytes, [0xaa, 0xbb, 0xcc, 0xdd]);
+///
+/// // Either direction of the width arrives as the caller's own error.
+/// let short = hex_bytes_exact::<4, _>("aabbcc", "widget", |got| format!("got {got}"));
+/// assert_eq!(short, Err(ServiceError::Domain("got 3".to_string())));
+/// # Ok::<_, ServiceError<String>>(())
+/// ```
+pub fn hex_bytes_exact<const N: usize, E>(
+    input: &str,
+    subject: &'static str,
+    wrong_width: impl FnOnce(usize) -> E,
+) -> Result<[u8; N], ServiceError<E>> {
+    // Both arms that reach `wrong_width` funnel into one call, so it stays
+    // `FnOnce` — a caller should be able to pass a closure that moves.
+    let got = match hex_bytes(input, subject, N) {
+        // `TryFrom<Vec<_>>` rather than from a slice: it moves the bytes and
+        // hands the vector back on failure, so the success path is a move and
+        // reads as one.
+        Ok(bytes) => match <[u8; N]>::try_from(bytes) {
+            Ok(exact) => return Ok(exact),
+            // Short: the cap above only rejects long ones.
+            Err(short) => short.len(),
+        },
+        Err(InputError::TooLarge { got_bytes, .. }) => got_bytes,
+        Err(other) => return Err(ServiceError::Input(other)),
+    };
+    Err(ServiceError::Domain(wrong_width(got)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A stand-in for the domain errors real callers build — the point is that
+    /// the width failure arrives as *theirs*, carrying the size supplied.
+    #[derive(Debug, PartialEq, Eq)]
+    struct WrongWidth(usize);
+
+    #[test]
+    fn an_exact_width_reports_both_directions_as_one_error() {
+        let exact = |s: &str| hex_bytes_exact::<4, _>(s, "private key", WrongWidth);
+
+        assert_eq!(exact("aabbccdd").unwrap(), [0xaa, 0xbb, 0xcc, 0xdd]);
+        assert_eq!(
+            exact("aabbcc").unwrap_err(),
+            ServiceError::Domain(WrongWidth(3)),
+            "short is the caller's error, not an input one"
+        );
+        assert_eq!(
+            exact("aabbccddee").unwrap_err(),
+            ServiceError::Domain(WrongWidth(5)),
+            "…and so is long, which `hex_bytes` alone would call TooLarge"
+        );
+    }
+
+    /// Everything that is not about the width still comes back as input, so an
+    /// exact-width endpoint keeps the shared vocabulary for the shared
+    /// mistakes.
+    #[test]
+    fn only_the_width_becomes_a_domain_error() {
+        let exact = |s: &str| hex_bytes_exact::<4, _>(s, "private key", WrongWidth);
+
+        assert_eq!(
+            exact("  ").unwrap_err(),
+            ServiceError::Input(InputError::Empty {
+                subject: "private key"
+            })
+        );
+        assert!(matches!(
+            exact("zzzzzzzz").unwrap_err(),
+            ServiceError::Input(InputError::Hex(_))
+        ));
+    }
 
     #[test]
     fn decodes_and_trims() {
