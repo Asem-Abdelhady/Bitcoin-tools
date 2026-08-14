@@ -2,7 +2,8 @@
 
 use serde::Deserialize;
 
-use crate::services::keys::{default_compressed, default_network};
+use crate::services::default_network;
+use crate::services::keys::default_compressed;
 use bitcoin_tools_core::keys::PrivateKey;
 use bitcoin_tools_core::network::Network;
 

@@ -1,10 +1,13 @@
 //! Deriving a public key from a private one, as a use case.
 
+use std::fmt;
+
 use serde::Deserialize;
 
+use crate::services::default_network;
 use crate::services::error::ServiceError;
 use crate::services::input::hex_bytes_exact;
-use crate::services::keys::{default_compressed, default_network};
+use crate::services::keys::default_compressed;
 use bitcoin_tools_core::crypto::secp::SCALAR_SIZE;
 use bitcoin_tools_core::keys::{PrivateKey, PrivateKeyError};
 use bitcoin_tools_core::network::Network;
@@ -18,7 +21,10 @@ const SUBJECT: &str = "private key";
 /// `/keys/generate` — but here they are not cosmetic either. The scalar alone
 /// does not determine an address: the same 32 bytes give a different P2PKH
 /// address compressed and uncompressed, and a different one again per network.
-#[derive(Debug, Deserialize)]
+///
+/// [`Debug`] is hand-written so the key does not print — see
+/// [`DeriveRequest`](crate::services::hd::derive::DeriveRequest).
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PublicKeyRequest {
     /// The secret, as 64 hex digits. `0x` and whitespace are tolerated.
@@ -29,6 +35,16 @@ pub struct PublicKeyRequest {
     /// Whether the public key is used in compressed form.
     #[serde(default = "default_compressed")]
     pub compressed: bool,
+}
+
+impl fmt::Debug for PublicKeyRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PublicKeyRequest")
+            .field("private_key", &"<redacted>")
+            .field("network", &self.network)
+            .field("compressed", &self.compressed)
+            .finish()
+    }
 }
 
 /// Bad input, or 32 bytes that are not a usable key.
@@ -176,6 +192,22 @@ mod tests {
             derived("zz").unwrap_err(),
             ServiceError::Input(InputError::Hex(_))
         ));
+    }
+
+    /// The one field of this request that must never reach a log line.
+    #[test]
+    fn the_private_key_does_not_appear_in_debug_output() {
+        let rendered = format!(
+            "{:?}",
+            PublicKeyRequest {
+                private_key: KEY.to_owned(),
+                network: Network::Testnet,
+                compressed: true,
+            }
+        );
+        assert!(!rendered.contains(KEY), "{rendered}");
+        assert!(rendered.contains("<redacted>"), "{rendered}");
+        assert!(rendered.contains("Testnet"), "{rendered}");
     }
 
     #[test]

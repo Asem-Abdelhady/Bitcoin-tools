@@ -11,6 +11,7 @@ use axum::Router;
 pub fn app() -> Router {
     Router::new()
         .nest("/blocks", routes::blocks::router())
+        .nest("/hd", routes::hd::router())
         .nest("/keys", routes::keys::router())
         .nest("/transactions", routes::transactions::router())
         .fallback(handlers::error::not_found)
