@@ -121,10 +121,14 @@ they are what keep the two reviews independent.
   `0xffffffff`, empty scriptSig) and `type` is required, because the
   serialization changes the bytes, the txid, and whether a witness survives at
   all — that is not a default anyone should inherit silently.
-- All request DTOs use `deny_unknown_fields`, and all of them live in their
-  service — `TxSpec`, `SplitTxRequest`, `AnalyzeScriptRequest`,
-  `BlockHeaderRequest`, `GenerateKeyRequest`, `PublicKeyRequest`. No exceptions
-  left; a request shape in a handler is drift, not variation.
+- All request DTOs use `deny_unknown_fields` and live in their service; a
+  request shape in a handler is drift, not variation. Deliberately not
+  enumerated — the list went stale twice, and the rule is grep-checkable while
+  a list is not.
+- A signature is read in whichever encoding its *length* says: exactly 64
+  bytes is compact, anything else is DER. `/crypto/verify` reports `encoding`
+  back, because that rule is the server's own inference rather than something
+  the caller stated.
 - `network` defaults to mainnet from `services::default_network`, shared by
   `/keys` and `/hd`; `compressed` defaults to true from `services::keys`. The
   domain deliberately gives `Network` no `Default` — picking one is a transport
@@ -164,6 +168,9 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `invalid-derivation-path` | 400 | Not a path; the message names the step |
 | `too-many-keys` | 400 | More children than one derive request may ask for |
 | `index-out-of-range` | 400 | A child index past the largest normal one, 2³¹−1 |
+| `invalid-public-key` | 400 | Not a point on the curve, or not a SEC1 encoding |
+| `invalid-message-hash` | 400 | Not the 32 bytes ECDSA signs |
+| `invalid-signature` | 400 | Not strict DER (BIP66) and not 64 compact bytes, or `r`/`s` is not a scalar |
 | `no-inputs` | 400 | A build request spends nothing |
 | `no-outputs` | 400 | A build request pays nothing |
 | `duplicate-input` | 400 | Two inputs name the same outpoint |
@@ -225,6 +232,14 @@ Each impl redacts the secret fields and keeps printing the rest, and each has a
 test asserting *both* — a redaction that blanked everything would pass half a
 test and lose the debugging value that is the only reason `Debug` is there.
 `a_derived_debug_inherits_the_leafs_redaction` pins the propagation itself.
+
+**A `false` answer is not an error.** `/crypto/verify` returns 200 with
+`valid: false` for a signature that does not verify: that is the question the
+endpoint exists to answer, and there is no sub-reason a caller could act on.
+Only bytes that are not a signature *at all* are a 400. The same split governs
+how far the domain reaches — a four-kilobyte signature still hears
+`invalid-signature`, because 72 bytes is a fact about DER rather than a policy
+of this server, and the route cap sits high enough to let the domain say so.
 
 A malformed *request* is 4xx. Malformed *data* the request asked about is a
 judgement call: a broken script returns 200 with an `error` field, because
