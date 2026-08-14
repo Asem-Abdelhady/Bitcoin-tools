@@ -4,6 +4,7 @@ pub mod crypto;
 pub mod error;
 pub mod hd;
 pub mod keys;
+pub mod tools;
 pub mod transactions;
 
 use axum::Json;

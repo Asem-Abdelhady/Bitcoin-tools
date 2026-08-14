@@ -43,7 +43,8 @@ Core's own layering (L0–L4, nothing imports upward) is in its README.
 | `bitcoin_tools_core::hex` | The only hex codec: `encode`, `decode`, `normalize`, `HexError`. |
 | `services::input::hex_bytes` | The only definition of "usable hex input": trim, `0x`, empty, size cap. |
 | `services::input::hex_bytes_exact` | The same, for a field of one fixed width. Both directions of the width become *your* domain error, so the endpoint keeps a slug named for what it parses. |
-| `services::error::ServiceError<E>` | `Input`-or-`Domain`. State only your own parse error type. |
+| `services::error::ServiceError<E>` | `Input`-or-`Domain`. State only your own parse error type. Skip it when there is no domain half: `/tools/reverse-bytes` returns bare `InputError`, because reversing decoded bytes cannot fail and a two-armed error would have a variant nothing constructs. |
+| `services::tools::HexRequest` | `{"hex": "<hex>"}`, for a `/tools` endpoint whose input is one payload with no domain noun to name it after. |
 | `handlers::error` | `ApiError` trait + `ApiRejection<E>`. `IntoResponse`, the JSON envelope, `JsonRejection` mapping, and the 404/405 fallbacks are all implemented once. |
 | `tests/common::assert_transport_contract` | The four assertions every JSON endpoint owes a client — unknown field, broken body, missing `Content-Type`, wrong method. A suite asserts its *domain*; the transport half is one line. |
 | `tests/common::assert_error` | Status and slug together, with the body in the failure message. Returns the body for message checks. |
@@ -133,7 +134,17 @@ they are what keep the two reviews independent.
   `/keys` and `/hd`; `compressed` defaults to true from `services::keys`. The
   domain deliberately gives `Network` no `Default` — picking one is a transport
   decision, not a domain fact.
-- Request DTOs now also include `GenerateMnemonicRequest` and `DeriveRequest`.
+- **A field that names a notation is required, never defaulted.** `/tools/number`
+  takes `base` and `/tools/units` takes `denomination`, both mandatory, for the
+  reason `/transactions/builder` requires `type`: the answer changes. `10` is
+  two, ten or sixteen; `1` is a satoshi or a hundred million of them. A default
+  there would return a confident wrong answer rather than an error.
+- **A value that must not be rounded arrives as a string.** `/tools/number`'s
+  `value` and `/tools/units`' `amount` refuse a JSON number, which is a double in
+  most consumers — exact only below 2^53. 1.2 exists so a 256-bit key can be read
+  in decimal, and money is held in integer satoshis precisely so `0.1 + 0.2`
+  cannot lose one. Both endpoints answer in strings for the same reason,
+  including the satoshi count.
 
 ### JSON
 
@@ -145,6 +156,15 @@ they are what keep the two reviews independent.
   handler-side view instead, because it carries `Opcode` and `Vec<u8>` that have
   to be rendered as a name and hex. Follow that split: value enums may go direct,
   anything needing rendering gets a view.
+- **Where an enum names the answers, the response keys are its serde spellings.**
+  `/tools/number` answers under `binary`/`decimal`/`hexadecimal` and
+  `/tools/units` under `satoshi`/`microbitcoin`/`millibitcoin`/`bitcoin` —
+  exactly the tokens `Base` and `Denomination` deserialize from, which is what
+  the request field takes. So one token means one thing in both directions and a
+  client can feed a response key straight back in as a request value. Note this
+  is why those two keys are not camelCased: `microBitcoin` would be a *second*
+  spelling of a value the request already names. `a_units_response_names_every_denomination_the_domain_has`
+  pins the set against `Denomination::all()` rather than restating it.
 
 ### Errors
 
@@ -175,7 +195,10 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `no-outputs` | 400 | A build request pays nothing |
 | `duplicate-input` | 400 | Two inputs name the same outpoint |
 | `null-prevout` | 400 | An input spends the null outpoint, which only a coinbase may do |
-| `amount-out-of-range` | 400 | An output value, or the total, is above 21M BTC |
+| `amount-out-of-range` | 400 | An amount is past what an amount can be: above 21M BTC for a build request's output or total, above `u64` satoshis at `/tools/units` |
+| `amount-too-precise` | 400 | A fraction finer than the unit holds — `0.1 sat` is not a small amount, it is not an amount |
+| `invalid-amount` | 400 | Not an amount at all: negative, a stray character, a second decimal point |
+| `invalid-number` | 400 | Not a digit in the base the request named; the message gives the offset |
 | `segwit-without-witness` | 400 | `type: segwit` with no witness data — BIP144 requires the legacy encoding |
 | `witness-on-legacy` | 400 | `type: legacy` with witness data, which that encoding cannot hold |
 | `transaction-too-large` | 413 | The *built* transaction is past the domain size cap |
@@ -204,6 +227,15 @@ carrying the size actually sent. `input-too-large` elsewhere means a 10 kB
 script or a 1 MB transaction, and a client should not learn two vocabularies for
 one failure; the builder settled this for its wrong-length `txid`. Pass the
 helper a closure building your own error and it handles both directions.
+
+**A cap on the input is `input-too-large`; a value past what the type can hold
+is not.** `/tools/number` refuses 4097 digits with `input-too-large` and a 413,
+because that is a size cap like any other and the caller's fix is to send less.
+`/tools/units` refuses more satoshis than fit in a `u64` with
+`amount-out-of-range` and a 400, because the *string* was a perfectly ordinary
+size and it is the quantity that does not exist. Same for
+`amount-too-precise` — `0.1 sat` is twelve characters. Reach for
+`input-too-large` when the payload is too big, never when the number is.
 
 **Secrets.** An endpoint returns one only if producing it is its purpose:
 `/keys/generate`, `/hd/mnemonic`, `/hd/derive`. What that forbids is handing a
@@ -256,10 +288,13 @@ once field boundaries stop lining up there is no partial answer.
 
 ## Open decisions
 
-- **Path casing.** Paths are currently single lowercase words (`/script`,
-  `/splitter`) while JSON is camelCase. `/tools/reverse_bytes` introduces
-  snake_case. Kebab-case (`/tools/reverse-bytes`) is the common REST
-  convention — the user's call, not to be changed unilaterally.
+- **Path casing.** A multi-word path is kebab-case: `/tools/reverse-bytes` is
+  the first one and settles that much, since kebab is the ordinary REST
+  convention. `the_multi_word_path_is_kebab_case` asserts the snake_case
+  spelling 404s rather than quietly aliasing. What is still open is the
+  *existing* single-word paths (`/script`, `/splitter`, `/derive`) — they read
+  the same under every convention, so renaming them buys nothing and is the
+  user's call, not to be done unilaterally.
 - Trailing slashes 404 (`/transactions/script/`). Undecided whether to normalise.
 - **`/hd/seed`** — words plus passphrase in, seed out. The missing direction:
   nothing in the API takes a mnemonic, so a caller who kept the sentence and
