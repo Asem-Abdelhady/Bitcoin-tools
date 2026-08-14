@@ -4,6 +4,7 @@ pub mod blocks;
 pub mod crypto;
 pub mod hd;
 pub mod keys;
+pub mod tools;
 pub mod transactions;
 
 /// Room for a hex payload of `max_bytes` plus the JSON envelope around it.

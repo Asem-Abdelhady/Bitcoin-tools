@@ -4,6 +4,7 @@ pub mod error;
 pub mod hd;
 pub mod input;
 pub mod keys;
+pub mod tools;
 pub mod transactions;
 
 use bitcoin_tools_core::network::Network;
