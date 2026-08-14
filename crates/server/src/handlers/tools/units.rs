@@ -1,4 +1,4 @@
-//! HTTP surface for 1.3.
+//! HTTP surface for the unit converter.
 
 use axum::http::StatusCode;
 use axum::{Json, extract::rejection::JsonRejection};

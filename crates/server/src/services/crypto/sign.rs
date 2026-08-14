@@ -1,4 +1,4 @@
-//! 7.1 — signing a hash, as a use case.
+//! signing a hash, as a use case.
 
 use std::fmt;
 
@@ -98,7 +98,7 @@ pub struct Signed {
     pub hash: [u8; MESSAGE_SIZE],
 }
 
-/// 7.1 — sign a hash with a private key.
+/// sign a hash with a private key.
 ///
 /// Deterministic: RFC 6979 derives the nonce from the key and the hash, so the
 /// same request always produces the same signature. That is not a convenience

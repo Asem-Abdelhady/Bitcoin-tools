@@ -1,4 +1,4 @@
-//! § 3.2 — Public keys.
+//! Public keys.
 
 use crate::parse::display_serialize;
 use std::fmt;
@@ -141,7 +141,7 @@ impl PublicKey {
         self.point
     }
 
-    /// 7.2 — does `signature` verify against this key and this hash?
+    /// Does `signature` verify against this key and this hash?
     ///
     /// A forward to [`ecdsa::verify`], which documents what the answer means —
     /// in particular that it is the arithmetic question, and that

@@ -1,4 +1,4 @@
-//! HTTP surface for 1.1.
+//! HTTP surface for byte reversal.
 
 use axum::{Json, extract::rejection::JsonRejection};
 use serde::Serialize;

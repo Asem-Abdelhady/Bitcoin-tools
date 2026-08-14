@@ -1,4 +1,4 @@
-//! § 2.3 — SHA-256.
+//! SHA-256.
 
 use sha2::{Digest, Sha256};
 

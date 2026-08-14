@@ -1,6 +1,6 @@
 //! `Tx::decode` and `Tx::breakdown` against real mainnet transactions.
 //!
-//! These 22 vectors are the acceptance criteria for feature 5.2. They live
+//! These 22 vectors are the acceptance criteria for the decoder. They live
 //! here, in the library's own suite, rather than only behind the web server:
 //! the decoder is the thing being verified, and it must be provably correct
 //! for a CLI that will never construct an HTTP response.
@@ -29,7 +29,7 @@ fn check(vector: &Value, at: &str) {
         "{at}: re-encoding changed the bytes"
     );
 
-    // Feature 1.1 against real data, and a cross-check between the crate's two
+    // Byte reversal against real data, and a cross-check between the crate's two
     // independent implementations of the same flip: `Txid`'s `Display` writes
     // wire order backwards, and `reverse_hex` reverses a hex string it knows
     // nothing else about. Both must produce the txid the vector shows.
@@ -196,7 +196,8 @@ fn a_displayed_txid_parses_back_to_itself() {
     }
 }
 
-/// 5.1 against 5.2: every vector, taken apart and put back together.
+/// The builder against the decoder: every vector, taken apart and put back
+/// together.
 ///
 /// The builder's acceptance criterion is that it can express a real
 /// transaction, so each vector is decoded, rebuilt through

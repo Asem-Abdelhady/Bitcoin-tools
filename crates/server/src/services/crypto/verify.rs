@@ -1,4 +1,4 @@
-//! 7.2 — verifying a signature, as a use case.
+//! verifying a signature, as a use case.
 
 use std::fmt;
 
@@ -84,7 +84,7 @@ pub struct Verification {
     pub key: PublicKey,
 }
 
-/// 7.2 — does this signature verify against this key and this hash?
+/// does this signature verify against this key and this hash?
 ///
 /// # A high `s` verifies
 ///

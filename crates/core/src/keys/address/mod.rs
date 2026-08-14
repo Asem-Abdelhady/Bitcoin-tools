@@ -1,4 +1,4 @@
-//! § 3.2 — Addresses.
+//! Addresses.
 //!
 //! An address is a way of writing a `scriptPubKey` so a person can copy it.
 //! Bitcoin has two ways of doing that and they have nothing in common: one is

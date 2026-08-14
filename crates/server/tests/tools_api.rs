@@ -1,19 +1,19 @@
 //! End-to-end tests for `POST /tools/reverse-bytes`, `POST /tools/number` and
-//! `POST /tools/units` — § 1.
+//! `POST /tools/units`.
 //!
 //! These three endpoints have no vectors of their own, and inventing a file of
 //! them would only restate arithmetic. What they do have is *relations to the
-//! rest of the API*, which is stronger: 1.1 is the operation relating the two
-//! byte orders `/blocks/hash` already reports, so the ten mainnet headers in
-//! the shared vectors crate pin it without a single expectation being written
-//! down twice.
+//! rest of the API*, which is stronger: reversal is the operation relating the
+//! two byte orders `/blocks/hash` already reports, so the ten mainnet headers
+//! in the shared vectors crate pin it without a single expectation being
+//! written down twice.
 
 mod common;
 
 use axum::http::StatusCode;
 use bitcoin_tools_core::general::{Denomination, Number};
+use bitcoin_tools_server::services::tools::reverse::MAX_BYTES;
 use bitcoin_tools_vectors::{blocks, field};
-use bitcoin_tools_web_server::services::tools::reverse::MAX_BYTES;
 use common::{assert_error, assert_transport_contract, message, post_json, post_ok};
 use serde_json::{Value, json};
 
@@ -49,9 +49,9 @@ fn keys(body: &Value) -> Vec<&str> {
         .collect()
 }
 
-// ---------------------------------------------------------------- 1.1
+// ---------------------------------------------------------------- reverse-bytes
 
-/// The relation that makes 1.1 checkable against something other than itself:
+/// The relation that makes this checkable against something other than itself:
 /// a block hash as people write it is the header's own hash reversed, and
 /// `/blocks/hash` reports both. Ten mainnet headers, and neither endpoint is
 /// told the other's answer.
@@ -167,10 +167,10 @@ async fn a_payload_past_the_cap_is_refused_by_the_service() {
     );
 }
 
-// ---------------------------------------------------------------- 1.2
+// ---------------------------------------------------------------- number
 
-/// The case 1.2 exists for. A 256-bit value has no JSON number that holds it,
-/// which is why `value` is a string in both directions.
+/// The case this endpoint exists for. A 256-bit value has no JSON number that
+/// holds it, which is why `value` is a string in both directions.
 #[tokio::test]
 async fn the_group_order_converts_without_losing_a_bit() {
     let body = post_ok(
@@ -314,7 +314,7 @@ async fn a_missing_or_unknown_base_is_refused() {
     );
 }
 
-// ---------------------------------------------------------------- 1.3
+// ---------------------------------------------------------------- units
 
 /// One amount, read in each unit and rendered in all four — the same 15 000
 /// satoshis every time.

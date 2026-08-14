@@ -1,4 +1,4 @@
-//! § 3.2 — Witness addresses: P2WPKH, P2WSH, P2TR, and the versions after
+//! Witness addresses: P2WPKH, P2WSH, P2TR, and the versions after
 //! them.
 //!
 //! A witness address is a version number and a program, and *that is all it

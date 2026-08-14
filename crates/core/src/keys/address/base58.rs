@@ -1,4 +1,4 @@
-//! § 3.2 — Base58Check addresses, and the parts they are made of.
+//! Base58Check addresses, and the parts they are made of.
 //!
 //! P2PKH, which commits to a public key, and P2SH, which commits to a script.
 //! Both are twenty bytes behind a version byte, which is why they share a type
@@ -107,7 +107,7 @@ pub struct Base58Address {
 
 /// A Base58 address taken apart: the three fields a decoder should show.
 ///
-/// This is what 3.2 means by "split into prefix, hash, and checksum" — the
+/// This is what "split into prefix, hash, and checksum" means — the
 /// point of the tool is that an address is not an opaque string, and the
 /// checksum in particular is only interesting when you can see it.
 #[derive(Debug, Clone, PartialEq, Eq)]

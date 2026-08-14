@@ -1,13 +1,13 @@
-//! § 3 — Keys and addresses.
+//! Keys and addresses.
 //!
 //! ## Done
 //!
 //! | File | Feature |
 //! |---|---|
-//! | `private.rs` | 3.1 Private Key — the key as binary/decimal/hex, plus WIF |
-//! | `public.rs` | 3.2 Public Key — (x, y), compressed `02`/`03`, uncompressed `04`, x-only |
-//! | `address/base58.rs` | 3.2 P2PKH and P2SH, split into prefix, hash, and checksum |
-//! | `address/segwit.rs` | 3.2 P2WPKH, P2WSH, P2TR and later versions, split into prefix, version, program and checksum |
+//! | `private.rs` | Private Key — the key as binary/decimal/hex, plus WIF |
+//! | `public.rs` | Public Key — (x, y), compressed `02`/`03`, uncompressed `04`, x-only |
+//! | `address/base58.rs` | P2PKH and P2SH, split into prefix, hash, and checksum |
+//! | `address/segwit.rs` | P2WPKH, P2WSH, P2TR and later versions, split into prefix, version, program and checksum |
 //!
 //! A private key is rejected if it is zero or at or above the secp256k1 group
 //! order; both are outside the valid scalar range and neither is caught by "is

@@ -1,4 +1,4 @@
-//! § 1 — Representation conversions.
+//! Representation conversions.
 //!
 //! Small, self-contained transformations of a single value. Nothing here
 //! parses a consensus structure; that is [`transactions`](crate::transactions)
@@ -8,11 +8,9 @@
 //!
 //! | File | Feature |
 //! |---|---|
-//! | `reverse.rs` | 1.1 Reverse Bytes — wire order ⇄ display order |
-//! | `number.rs` | 1.2 Number Converter — one value as binary, decimal, and hex |
-//! | `units.rs` | 1.3 Unit Converter — `Amount` in sats, µBTC, mBTC, BTC |
-//!
-//! § 1 is complete.
+//! | `reverse.rs` | Reverse Bytes — wire order ⇄ display order |
+//! | `number.rs` | Number Converter — one value as binary, decimal, and hex |
+//! | `units.rs` | Unit Converter — `Amount` in sats, µBTC, mBTC, BTC |
 //!
 //! `units.rs` owns an [`Amount`] newtype over integer satoshis, and
 //! [`Output::value`](crate::transactions::tx::Output) is one — the two were
@@ -35,16 +33,17 @@
 //! [`hex`](crate::hex) at L0, alongside
 //! [`hex::write_rev`](crate::hex::write_rev) which already encodes the same
 //! decision; [`hex::encode_rev`](crate::hex::encode_rev) is the allocating
-//! form it grew when 1.1 landed. [`reverse`] is the feature-facing wrapper
+//! form it grew for this module. [`reverse`] is the feature-facing wrapper
 //! over it: hex in, hex out, with the error handling a user-supplied string
 //! needs.
 //!
-//! ## `Number` is arbitrary-precision because 3.1 says so
+//! ## `Number` is arbitrary-precision because private keys need it to be
 //!
 //! [`Number`] could have been a `u64` and covered every amount, nonce and
-//! locktime. It is not, because 3.1 asks for a *256-bit private key* as
-//! binary, decimal and hex, and a 64-bit converter would have made that
-//! feature write its own decimal renderer. The arithmetic is two loops — see
+//! locktime. It is not, because a *256-bit private key* has to be shown as
+//! binary, decimal and hex, and a 64-bit converter would have made
+//! [`keys`](crate::keys) write its own decimal renderer. The arithmetic is
+//! two loops — see
 //! [`number`] for the full argument and for why parsing does not go through
 //! [`hex::decode`](crate::hex::decode).
 

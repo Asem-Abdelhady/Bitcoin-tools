@@ -1,4 +1,4 @@
-//! 1.1 — Reverse Bytes: wire order ⇄ display order.
+//! Reverse Bytes: wire order ⇄ display order.
 //!
 //! Bitcoin writes hashes into blocks and transactions in one byte order and
 //! shows them to people in the other. A txid copied from an explorer never

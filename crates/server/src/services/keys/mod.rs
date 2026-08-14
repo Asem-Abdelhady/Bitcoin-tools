@@ -1,4 +1,4 @@
-//! § 3 — private keys, public keys and the addresses they derive.
+//! private keys, public keys and the addresses they derive.
 //!
 //! ## The two endpoints do not overlap on purpose
 //!

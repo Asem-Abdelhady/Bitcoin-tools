@@ -1,4 +1,4 @@
-//! § 1 — representation conversions.
+//! representation conversions.
 //!
 //! Three endpoints over one idea: a value, shown the other ways it can be
 //! written. Nothing here parses a consensus structure — that is
@@ -24,9 +24,9 @@
 //! `value` and `amount` are JSON strings, and a JSON *number* in either field
 //! is refused rather than accepted. Both fields would lose to a double: an
 //! amount because `0.1 + 0.2` is a real satoshi-losing bug and the domain
-//! keeps money in integers for exactly that reason, and a number because 1.2
-//! exists to show a 256-bit private key in decimal, which is 205 bits past
-//! what a JSON number carries. A field that silently mangles the value it was
+//! keeps money in integers for exactly that reason, and a number because the
+//! converter exists to show a 256-bit private key in decimal, which is 205
+//! bits past what a JSON number carries. A field that silently mangles the value it was
 //! given is worse than one that refuses it.
 
 pub mod number;

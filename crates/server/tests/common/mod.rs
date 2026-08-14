@@ -8,7 +8,7 @@
 
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
-use bitcoin_tools_web_server::app;
+use bitcoin_tools_server::app;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 

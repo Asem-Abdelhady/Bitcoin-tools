@@ -7,7 +7,7 @@ A cargo workspace: a Bitcoin domain library, and an axum JSON API over it.
 | Crate | Path | What it is |
 |---|---|---|
 | `bitcoin-tools-core` | `crates/core/` | The domain library. Published. No HTTP, no I/O, no framework. See its [README](crates/core/README.md) — it is the spec. |
-| `bitcoin-tools-web-server` | `crates/server/` | The axum API. `publish = false`. |
+| `bitcoin-tools-server` | `crates/server/` | The axum API. `publish = false`. |
 | `bitcoin-tools-vectors` | `crates/vectors/` | Known-good test vectors, shared by both test suites. `publish = false`, dev-dependency only. |
 
 The split is load-bearing: core **cannot** reference the server, because it is

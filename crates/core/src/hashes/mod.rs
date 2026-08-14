@@ -1,4 +1,4 @@
-//! § 2 — Hash functions.
+//! Hash functions.
 //!
 //! A layer, not a leaf: [`encoding`](crate::encoding) needs HASH256 for its
 //! Base58 checksum, [`keys`](crate::keys) needs HASH160 for addresses,
@@ -11,9 +11,9 @@
 //!
 //! | File | Feature |
 //! |---|---|
-//! | `sha256.rs` | 2.3 SHA-256 |
-//! | `hash256.rs` | 2.1 HASH256 — double SHA-256 |
-//! | `hash160.rs` | 2.2 HASH160 — RIPEMD-160 of SHA-256 |
+//! | `sha256.rs` | SHA-256 |
+//! | `hash256.rs` | HASH256 — double SHA-256 |
+//! | `hash160.rs` | HASH160 — RIPEMD-160 of SHA-256 |
 //! | `hmac.rs` | HMAC-SHA512 and PBKDF2, for BIP32 and BIP39 |
 //! | `tagged.rs` | BIP340 tagged hashes, for taproot |
 //! | `hash.rs` | `Hash<const N>` — storage, width, hex, and both byte orders |
@@ -37,7 +37,7 @@
 //!
 //! ## Only the compositions Bitcoin names are exposed
 //!
-//! `sha256` is public because it is a feature in its own right (2.3) and
+//! `sha256` is public because it is a feature in its own right and
 //! because Bitcoin uses a single round alone in several places — the P2WSH
 //! witness-program commitment, BIP143 sighash midstates, BIP340 tagged hashes.
 //!
@@ -48,7 +48,8 @@
 //! are already reachable, `sha256(x)` as the intermediate and [`hash160()`] as
 //! the result. Publishing it later is additive; un-publishing it would be a
 //! break. A script *interpreter* would change the answer, and would want
-//! `sha1` too — but 5.3 stops at classification and does not execute.
+//! `sha1` too — but this crate's script support stops at classification and
+//! does not execute.
 //!
 //! ## `Hash<N>` is what keeps L4 from importing sideways
 //!
@@ -67,8 +68,8 @@
 //! meaning, not of the size.
 //!
 //! So [`struct@Hash`] stores wire order, offers both renderings by name, and makes
-//! `Display` the forward one. A type that reverses says so — and by § 6 three
-//! of them did, so *how* they say it is now written once: `hash.rs` carries a
+//! `Display` the forward one. A type that reverses says so — and three of them
+//! do, so *how* they say it is written once: `hash.rs` carries a
 //! private `reversed_hash!` that declares the newtype, both constructors, both
 //! accessors, the reversing `Display`, the matching `FromStr` and the serde
 //! impl. [`Txid`](crate::transactions::tx::Txid),

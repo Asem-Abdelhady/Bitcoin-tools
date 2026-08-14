@@ -1,4 +1,4 @@
-//! § 6 — Block headers.
+//! Block headers.
 //!
 //! ## Files
 //!
@@ -23,7 +23,7 @@
 //! beats the median of the last eleven blocks, whether this header extends the
 //! most-worked chain — each needs headers this one does not carry. Consensus
 //! validation is a chain's job, not a decoder's, and stopping here is what
-//! keeps § 6 from turning into a node.
+//! keeps this module from turning into a node.
 //!
 //! There is likewise no `Block` type. A full block is a header followed by its
 //! transactions, and [`transactions`](crate::transactions) is L4 like this

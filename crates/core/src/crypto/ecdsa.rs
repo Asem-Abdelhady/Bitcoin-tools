@@ -1,4 +1,4 @@
-//! §§ 7.1 and 7.2 — ECDSA over secp256k1: sign a hash, verify a signature.
+//! ECDSA over secp256k1: sign a hash, verify a signature.
 //!
 //! Takes the curve types from [`secp`](super::secp) and knows nothing about
 //! keys, addresses or transactions. That is the layering — [`keys`](crate::keys)
@@ -332,7 +332,7 @@ impl std::str::FromStr for Signature {
 
 display_serialize!(Signature);
 
-/// 7.1 — sign a 32-byte hash.
+/// sign a 32-byte hash.
 ///
 /// # The nonce is derived, not drawn
 ///
@@ -363,7 +363,7 @@ pub fn sign(message_hash: &[u8; MESSAGE_SIZE], key: &SecretScalar) -> Signature 
     Signature(context().sign_ecdsa(message, key.as_backend()))
 }
 
-/// 7.2 — does this signature verify against this key and this hash?
+/// does this signature verify against this key and this hash?
 ///
 /// # High `s` verifies here
 ///

@@ -11,8 +11,8 @@ edition = "2024"
 # somewhere confusing — clippy checks the code against this number.
 rust-version = "1.87"
 authors = ["Asem Abdelhady <asemshawkey@gmail.com>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/Asem-Abdelhady/bitcoin-tools-web-server"
+license = "MIT"
+repository = "https://github.com/Asem-Abdelhady/Bitcoin-tools"
 
 [workspace.dependencies]
 bitcoin-tools-core = { path = "crates/core", version = "0.1.0" }

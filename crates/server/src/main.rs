@@ -1,4 +1,4 @@
-use bitcoin_tools_web_server::app;
+use bitcoin_tools_server::app;
 
 #[tokio::main]
 async fn main() {

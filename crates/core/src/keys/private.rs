@@ -1,4 +1,4 @@
-//! § 3.1 — Private keys and WIF.
+//! Private keys and WIF.
 
 use std::fmt;
 use std::str::FromStr;
@@ -230,7 +230,7 @@ impl PrivateKey {
 
     /// The key as a number, for rendering in binary, decimal or hex.
     ///
-    /// A private key *is* a 256-bit integer, and 3.1 asks to see it as one.
+    /// A private key *is* a 256-bit integer, and this shows it as one.
     /// Note that this drops leading zero bytes, as any numeric view does — use
     /// [`Number::to_be_bytes_padded`] to get the 32-byte field back.
     #[must_use]
@@ -251,7 +251,7 @@ impl PrivateKey {
         &self.scalar
     }
 
-    /// 7.1 — sign a 32-byte hash with this key.
+    /// Sign a 32-byte hash with this key.
     ///
     /// A forward to [`ecdsa::sign`], which is where the operation and its
     /// documentation live; it is here because "sign a hash with a private key"
@@ -411,7 +411,7 @@ mod tests {
         assert!(testnet.starts_with('9'), "got {testnet}");
     }
 
-    /// The two forwards in §§ 7.1 and 7.2 meet here: what a private key signs,
+    /// The signing and verifying forwards meet here: what a private key signs,
     /// its own public key verifies, and no other key does.
     #[test]
     fn a_key_pair_signs_and_verifies_at_the_key_level() {
@@ -515,7 +515,7 @@ mod tests {
         );
     }
 
-    /// 3.1 asks for the key in binary, decimal and hex — which is exactly
+    /// The key is wanted in binary, decimal and hex — which is exactly
     /// what `Number` already does, so the key only has to hand it over.
     #[test]
     fn renders_as_a_number_in_every_base() {

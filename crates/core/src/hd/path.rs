@@ -1,4 +1,4 @@
-//! § 4.2 — Derivation paths, and the four standard shapes over them.
+//! Derivation paths, and the four standard shapes over them.
 //!
 //! BIP44, BIP49, BIP84 and BIP86 are not four algorithms. They are four
 //! numbers in the first position of a path, and four decisions about what to
@@ -146,7 +146,7 @@ impl fmt::Display for ChildNumber {
 // The raw `u32` would be a correct transport and an unreadable one: nothing
 // in the number says its top bit is a flag, so a consumer reading `0` and
 // `2147483648` has to know the convention to see that they are the same
-// index. Every other rendering in § 4 goes through `Display`; so does this.
+// index. Every other rendering here goes through `Display`; so does this.
 display_serialize!(ChildNumber);
 
 impl FromStr for ChildNumber {

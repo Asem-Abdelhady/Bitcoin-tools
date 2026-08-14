@@ -107,14 +107,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitcoin-tools-vectors"
-version = "0.1.0"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "bitcoin-tools-web-server"
+name = "bitcoin-tools-server"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -124,6 +117,13 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower",
+]
+
+[[package]]
+name = "bitcoin-tools-vectors"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
