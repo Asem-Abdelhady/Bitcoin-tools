@@ -6,14 +6,9 @@ use serde::Deserialize;
 
 use crate::services::default_network;
 use crate::services::error::ServiceError;
-use crate::services::input::hex_bytes_exact;
-use crate::services::keys::default_compressed;
-use bitcoin_tools_core::crypto::secp::SCALAR_SIZE;
+use crate::services::keys::{default_compressed, private_key};
 use bitcoin_tools_core::keys::{PrivateKey, PrivateKeyError};
 use bitcoin_tools_core::network::Network;
-
-/// The noun this endpoint's messages use for its input.
-const SUBJECT: &str = "private key";
 
 /// What `/keys/public` accepts.
 ///
@@ -64,12 +59,7 @@ pub type KeyServiceError = ServiceError<PrivateKeyError>;
 /// That last one is not a length check restated: a value can be exactly the
 /// right size and still be no key at all, and secp256k1 says which.
 pub fn derive(request: &PublicKeyRequest) -> Result<PrivateKey, KeyServiceError> {
-    let bytes: [u8; SCALAR_SIZE] = hex_bytes_exact(&request.private_key, SUBJECT, |got| {
-        PrivateKeyError::WrongLength { got }
-    })?;
-
-    PrivateKey::from_be_bytes(&bytes, request.network, request.compressed)
-        .map_err(ServiceError::Domain)
+    private_key(&request.private_key, request.network, request.compressed)
 }
 
 #[cfg(test)]

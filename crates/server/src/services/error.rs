@@ -16,6 +16,23 @@ pub enum ServiceError<E> {
     Domain(E),
 }
 
+impl<E> ServiceError<E> {
+    /// Re-label the domain half, leaving the input half alone.
+    ///
+    /// For a service built on another one: `/crypto/sign` reuses the private
+    /// key parser and has to widen its `PrivateKeyError` into a `SignError`
+    /// that can also describe a bad message hash. Without this, every such
+    /// call site writes the same two-arm match and one of them eventually
+    /// converts the input half by mistake — which would report "not hex" as a
+    /// domain failure and give it the wrong status.
+    pub fn map_domain<F>(self, f: impl FnOnce(E) -> F) -> ServiceError<F> {
+        match self {
+            ServiceError::Input(e) => ServiceError::Input(e),
+            ServiceError::Domain(e) => ServiceError::Domain(f(e)),
+        }
+    }
+}
+
 impl<E: fmt::Display> fmt::Display for ServiceError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

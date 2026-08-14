@@ -1,6 +1,7 @@
 //! URL and method binding. Nothing here should contain logic.
 
 pub mod blocks;
+pub mod crypto;
 pub mod hd;
 pub mod keys;
 pub mod transactions;
