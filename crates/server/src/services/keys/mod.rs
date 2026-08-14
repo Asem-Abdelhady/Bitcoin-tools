@@ -4,23 +4,17 @@
 //!
 //! `/keys/generate` mints a secret and shows it. `/keys/public` takes a secret
 //! and shows only what is safe to publish — the public key, the hashes, the
-//! addresses — and never echoes the key back. That split is worth keeping: it
-//! means exactly one response in this API can contain a private key, and it is
-//! the one whose entire purpose is to.
+//! addresses — and never echoes the key back.
+//!
+//! The rule that split enforces is *an endpoint returns a secret only if
+//! producing one is its purpose*. `/keys/generate` qualifies, and so do both
+//! `/hd` endpoints — a seed and a derived WIF are what those are for. What the
+//! rule forbids is an endpoint handing a secret back merely because it was
+//! given one, which is what `/keys/public` would be doing if it echoed the key
+//! it derives from. Every endpoint that does return one sets `no-store`.
 
 pub mod generate;
 pub mod public;
-
-/// Mainnet unless a request says otherwise.
-///
-/// Not `Default::default()` on `Network`, which the domain deliberately does
-/// not define — a network is a decision, and the crate is right to refuse to
-/// pick one. Choosing here is a *transport* default for a tool whose users are
-/// overwhelmingly looking at mainnet, and it is stated in one place so the two
-/// endpoints cannot drift.
-pub(crate) const fn default_network() -> bitcoin_tools_core::network::Network {
-    bitcoin_tools_core::network::Network::Mainnet
-}
 
 /// Compressed unless a request says otherwise.
 ///

@@ -46,7 +46,11 @@ Core's own layering (L0–L4, nothing imports upward) is in its README.
 | `services::error::ServiceError<E>` | `Input`-or-`Domain`. State only your own parse error type. |
 | `handlers::error` | `ApiError` trait + `ApiRejection<E>`. `IntoResponse`, the JSON envelope, `JsonRejection` mapping, and the 404/405 fallbacks are all implemented once. |
 | `tests/common::assert_transport_contract` | The four assertions every JSON endpoint owes a client — unknown field, broken body, missing `Content-Type`, wrong method. A suite asserts its *domain*; the transport half is one line. |
-| `tests/common::assert_error` | Status and slug together, with the body in the failure message. |
+| `tests/common::assert_error` | Status and slug together, with the body in the failure message. Returns the body for message checks. |
+| `tests/common::post_json_headers` | Response headers, for the endpoints whose contract includes one. |
+| `handlers::NO_STORE` | `Cache-Control: no-store`. Set by every endpoint returning a secret and by no others, so its presence means something. |
+| `handlers::address` | Every address a public key produces, with its parts. `/keys/public` and `/hd/derive` both render it — two places deciding which addresses exist is two places to forget BIP143. |
+| `handlers::Secret<T>` | The return type of an endpoint that hands over a secret. Pairs with `NO_STORE` so the signature says it. |
 
 A new endpoint's entire error cost is one `impl ApiError for MyDomainError` giving
 a status and a slug. If you find yourself writing an `ErrorBody`, an
@@ -121,10 +125,11 @@ they are what keep the two reviews independent.
   service — `TxSpec`, `SplitTxRequest`, `AnalyzeScriptRequest`,
   `BlockHeaderRequest`, `GenerateKeyRequest`, `PublicKeyRequest`. No exceptions
   left; a request shape in a handler is drift, not variation.
-- `network` and `compressed` default to mainnet and compressed, from
-  `services::keys` so the two key endpoints cannot drift. The domain
-  deliberately gives `Network` no `Default` — picking one is a transport
+- `network` defaults to mainnet from `services::default_network`, shared by
+  `/keys` and `/hd`; `compressed` defaults to true from `services::keys`. The
+  domain deliberately gives `Network` no `Default` — picking one is a transport
   decision, not a domain fact.
+- Request DTOs now also include `GenerateMnemonicRequest` and `DeriveRequest`.
 
 ### JSON
 
@@ -154,6 +159,11 @@ Slugs are shared and kebab-case, produced by `ApiError::slug`:
 | `invalid-block-header` | 400 | Valid hex, but not the 80 bytes a header is |
 | `invalid-txid` | 400 | A `txid` field was not 32 bytes of hex |
 | `invalid-private-key` | 400 | Not 32 bytes, or 32 bytes that are not a scalar (zero, or at/above the group order) |
+| `invalid-word-count` | 400 | Not 12, 15, 18, 21 or 24 words |
+| `invalid-seed` | 400 | Not 16–64 bytes, or a seed BIP32 refuses |
+| `invalid-derivation-path` | 400 | Not a path; the message names the step |
+| `too-many-keys` | 400 | More children than one derive request may ask for |
+| `index-out-of-range` | 400 | A child index past the largest normal one, 2³¹−1 |
 | `no-inputs` | 400 | A build request spends nothing |
 | `no-outputs` | 400 | A build request pays nothing |
 | `duplicate-input` | 400 | Two inputs name the same outpoint |
@@ -188,6 +198,34 @@ script or a 1 MB transaction, and a client should not learn two vocabularies for
 one failure; the builder settled this for its wrong-length `txid`. Pass the
 helper a closure building your own error and it handles both directions.
 
+**Secrets.** An endpoint returns one only if producing it is its purpose:
+`/keys/generate`, `/hd/mnemonic`, `/hd/derive`. What that forbids is handing a
+secret back merely because one was given — `/keys/public` takes a private key
+and returns only public data. Every endpoint that does return a secret sets
+`NO_STORE` and returns `Secret<T>`; `keys_api` asserts `/keys/public` does
+*not*, which is what keeps the header a statement rather than boilerplate.
+
+**A type holding a secret writes its own `Debug`.** Requests as well as
+responses. Deriving `Debug` on a type holding a seed, a passphrase, a key or a
+mnemonic is the bug — `core` already hand-writes one for `PrivateKey`,
+`Mnemonic` and `Xpriv`, and a server type that derives it undoes that. Request
+logging is a planned feature, and the first `tracing` layer anyone adds formats
+an extractor's output with `{:?}`.
+
+**Only the leaves need writing.** A derived `Debug` calls each field's impl, so
+redaction propagates through a composite for free. The eight types that hold a
+secret each write their own — the three requests `DeriveRequest`,
+`GenerateMnemonicRequest` and `PublicKeyRequest`, and the five response views
+`PrivateKeyView`, `MnemonicView`, `ExtendedKeyView`, `DerivedPrivateKeyView` and
+`GenerateMnemonicResponse`, the last being the one composite carrying a
+plaintext field of its own. `GenerateKeyResponse`, `DerivedKeyView` and
+`DeriveResponse` hold secrets only through those fields, so they still derive.
+
+Each impl redacts the secret fields and keeps printing the rest, and each has a
+test asserting *both* — a redaction that blanked everything would pass half a
+test and lose the debugging value that is the only reason `Debug` is there.
+`a_derived_debug_inherits_the_leafs_redaction` pins the propagation itself.
+
 A malformed *request* is 4xx. Malformed *data* the request asked about is a
 judgement call: a broken script returns 200 with an `error` field, because
 showing where it broke is the point; a broken transaction returns 400, because
@@ -208,4 +246,10 @@ once field boundaries stop lining up there is no partial answer.
   snake_case. Kebab-case (`/tools/reverse-bytes`) is the common REST
   convention — the user's call, not to be changed unilaterally.
 - Trailing slashes 404 (`/transactions/script/`). Undecided whether to normalise.
+- **`/hd/seed`** — words plus passphrase in, seed out. The missing direction:
+  nothing in the API takes a mnemonic, so a caller who kept the sentence and
+  the passphrase (which is what BIP39 trains people to keep) cannot get back to
+  their wallet here, and `/hd/mnemonic`'s `passphrase` field cannot be
+  exercised against a sentence the caller already has. Small, and it is what
+  would make that field fully honest.
 - No env-based config, request logging, or graceful shutdown yet.
