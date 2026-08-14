@@ -1,12 +1,12 @@
-//! § 5 — Transactions and scripts.
+//! Transactions and scripts.
 //!
 //! ## Files
 //!
 //! | File | Feature |
 //! |---|---|
-//! | `tx.rs` | 5.2 Transaction Splitter — `Tx`, `Txid`, decode/encode, `TxBreakdown` |
-//! | `builder.rs` | 5.1 Transaction Builder — `TxBuilder`, `TxKind`, `BuildError` |
-//! | `script/` | 5.3 Script — `Script`, `Opcode`, `Instruction` |
+//! | `tx.rs` | Transaction Splitter — `Tx`, `Txid`, decode/encode, `TxBreakdown` |
+//! | `builder.rs` | Transaction Builder — `TxBuilder`, `TxKind`, `BuildError` |
+//! | `script/` | Script — `Script`, `Opcode`, `Instruction` |
 //!
 //! `Tx` and `TxBreakdown` are two views of one thing and the split is
 //! deliberate. `Tx` is the structure — typed fields, arithmetic, hashing.
@@ -15,7 +15,7 @@
 //! "what are these 300 bytes" wants the second, and flattening them into one
 //! type would make each half carry the other's baggage.
 //!
-//! `builder.rs` (5.1) is the inverse of `tx.rs` — and turned out **not** to be
+//! `builder.rs` is the inverse of `tx.rs` — and turned out **not** to be
 //! a second serializer. The plan here used to say it would write bytes, and so
 //! needed a `bytes::Writer` before it could exist. Writing it disproved that:
 //! `Tx::encode` already turns a transaction into consensus bytes, so the

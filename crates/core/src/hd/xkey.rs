@@ -1,4 +1,4 @@
-//! § 4.2 — BIP32 extended keys.
+//! BIP32 extended keys.
 //!
 //! An extended key is a key plus a chain code: 256 extra bits that are mixed
 //! into every child derivation. Without them, knowing a parent key and a child

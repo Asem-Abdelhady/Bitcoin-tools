@@ -5,9 +5,9 @@
 
 mod common;
 
+use bitcoin_tools_server::handlers::transactions::splitter::SplitTxResponse;
+use bitcoin_tools_server::services::transactions::tx::split_hex;
 use bitcoin_tools_vectors::{legacy, segwit};
-use bitcoin_tools_web_server::handlers::transactions::splitter::SplitTxResponse;
-use bitcoin_tools_web_server::services::transactions::tx::split_hex;
 use serde_json::Value;
 
 fn split_to_json(raw_tx: &str) -> Value {

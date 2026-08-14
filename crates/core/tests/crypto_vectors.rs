@@ -1,4 +1,4 @@
-//! § 7 against published vectors, which are its acceptance criteria.
+//! ECDSA against published vectors, which are its acceptance criteria.
 //!
 //! Two suites, and the second is the one that matters:
 //!

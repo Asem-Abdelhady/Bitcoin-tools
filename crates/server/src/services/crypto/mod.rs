@@ -1,4 +1,4 @@
-//! § 7 — ECDSA signing and verification.
+//! ECDSA signing and verification.
 //!
 //! ## Both endpoints take a *hash*, not a message
 //!

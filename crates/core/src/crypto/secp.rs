@@ -16,7 +16,7 @@
 //! omission rather than an oversight, and the note here used to say the
 //! decision belonged with whoever added signing.
 //!
-//! Signing arrived in § 7 and the decision is unchanged, for a specific
+//! Signing has since arrived and the decision is unchanged, for a specific
 //! reason: [`ecdsa::sign`](super::ecdsa::sign) *borrows* the scalar and hands
 //! it to the backend, so it creates no new copy of the secret and no new place
 //! for one to be left behind. The exposure is the same as it was — a
@@ -213,8 +213,8 @@ pub(crate) fn context() -> &'static Secp256k1<SignOnly> {
 /// *point* is a verification-side operation in libsecp256k1's model, and the
 /// note above says a future capability should have to be asked for by name
 /// rather than inherited — so it is asked for here, by name, and the signing
-/// context stays narrow. § 7 then needed exactly this one, which is the
-/// arrangement working rather than an accident.
+/// context stays narrow. [`ecdsa`](super::ecdsa) then needed exactly this one,
+/// which is the arrangement working rather than an accident.
 pub(crate) fn verify_context() -> &'static Secp256k1<VerifyOnly> {
     static CTX: OnceLock<Secp256k1<VerifyOnly>> = OnceLock::new();
     CTX.get_or_init(Secp256k1::verification_only)

@@ -1,4 +1,4 @@
-//! 1.3 — the unit converter, as a use case.
+//! the unit converter, as a use case.
 
 use serde::Deserialize;
 
@@ -26,7 +26,7 @@ pub struct UnitsRequest {
     pub denomination: Denomination,
 }
 
-/// 1.3 — read an amount in one unit, ready to render in all four.
+/// read an amount in one unit, ready to render in all four.
 ///
 /// # This does not enforce the 21-million cap
 ///

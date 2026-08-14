@@ -1,4 +1,4 @@
-//! § 4.1 — BIP39 mnemonic seeds.
+//! BIP39 mnemonic seeds.
 //!
 //! Entropy ⇄ sentence ⇄ seed. The sentence is a *rendering* of the entropy,
 //! not a second copy of it, which is why this type stores only the entropy and

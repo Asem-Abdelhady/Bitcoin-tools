@@ -1,5 +1,5 @@
 [package]
-name = "bitcoin-tools-web-server"
+name = "bitcoin-tools-server"
 description = "An axum JSON API over bitcoin-tools-core."
 publish = false
 version.workspace = true

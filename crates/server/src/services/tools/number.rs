@@ -1,4 +1,4 @@
-//! 1.2 — the number converter, as a use case.
+//! the number converter, as a use case.
 
 use serde::Deserialize;
 
@@ -10,11 +10,11 @@ use bitcoin_tools_core::general::{Base, Number, ParseNumberError};
 pub struct NumberRequest {
     /// The value, as a string.
     ///
-    /// A string rather than a JSON number, and the type refuses one: 1.2 exists
-    /// so a 256-bit private key can be read in decimal, and a JSON number is a
-    /// double in most consumers — exact only below 2^53. A field that quietly
-    /// returned a *different* number from the one sent would defeat the whole
-    /// feature.
+    /// A string rather than a JSON number, and the type refuses one: this
+    /// endpoint exists so a 256-bit private key can be read in decimal, and a
+    /// JSON number is a double in most consumers — exact only below 2^53. A
+    /// field that quietly returned a *different* number from the one sent
+    /// would defeat the whole point.
     pub value: String,
     /// Which base `value` is written in: `binary`, `decimal` or
     /// `hexadecimal`.
@@ -26,7 +26,7 @@ pub struct NumberRequest {
     pub base: Base,
 }
 
-/// 1.2 — read a number in one base, ready to render in all three.
+/// read a number in one base, ready to render in all three.
 ///
 /// The domain's parser does the whole job, including the trimming, the empty
 /// check and the digit-count cap, so this is the request shape and nothing

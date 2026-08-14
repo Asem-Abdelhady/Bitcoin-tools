@@ -1,4 +1,5 @@
-//! § 4 against the official vectors, which are its acceptance criteria.
+//! HD wallets against the official vectors, which are their acceptance
+//! criteria.
 //!
 //! Four suites, each testing something the others cannot:
 //!
@@ -47,8 +48,8 @@ fn bip39_english_vectors() {
         let seed = from_entropy.to_seed(passphrase);
         assert_eq!(hex::encode(&seed), field(vector, "seed", &at), "{at}");
 
-        // …and the master key that seed produces, which is where 4.1 hands
-        // over to 4.2.
+        // …and the master key that seed produces, which is where BIP39 hands
+        // over to BIP32.
         let master = Xpriv::new_master(&seed, Network::Mainnet)
             .unwrap_or_else(|e| panic!("{at}: master key: {e}"));
         assert_eq!(master.to_base58(), field(vector, "xprv", &at), "{at}");

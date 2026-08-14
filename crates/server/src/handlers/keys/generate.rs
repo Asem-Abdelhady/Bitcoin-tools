@@ -16,7 +16,7 @@ use bitcoin_tools_core::hex;
 use bitcoin_tools_core::keys::PrivateKey;
 use bitcoin_tools_core::network::Network;
 
-/// A private key rendered every way § 3.1 asks for.
+/// A private key in every representation: hex, decimal, binary and WIF.
 ///
 /// Built here and nowhere else in `/keys`. `/keys/public` receives a secret
 /// and deliberately does not echo one back — see

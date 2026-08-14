@@ -15,7 +15,7 @@
 //! read one back in `FromStr` accepting aliases case-insensitively, and each
 //! carry an `Unknown…` error holding the string that failed. This stopped at
 //! the third copy rather than the fifth because two more were already queued:
-//! [`Purpose`](crate::hd::Purpose) landed on it in 4.2 and is the fourth.
+//! [`Purpose`](crate::hd::Purpose) landed on it later and is the fourth.
 //!
 //! The fifth, an address-type enum, wanted only half of it. `AddressKind`
 //! names five output types but nothing parses one from text — an address is

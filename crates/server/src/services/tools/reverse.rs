@@ -1,4 +1,4 @@
-//! 1.1 — reversing byte order, as a use case.
+//! reversing byte order, as a use case.
 
 use crate::services::input::{InputError, hex_bytes};
 use crate::services::tools::HexRequest;
@@ -6,7 +6,7 @@ use bitcoin_tools_core::transactions::tx::Tx;
 
 /// The noun this endpoint's error messages use.
 ///
-/// Not "transaction" or "hash": the whole point of 1.1 is that it does not
+/// Not "transaction" or "hash": the whole point is that it does not
 /// care what the bytes are.
 const SUBJECT: &str = "input";
 
@@ -19,7 +19,7 @@ const SUBJECT: &str = "input";
 /// would read cannot be one this endpoint refuses.
 pub const MAX_BYTES: usize = Tx::MAX_SIZE;
 
-/// 1.1 — read the bytes a caller wants flipped.
+/// read the bytes a caller wants flipped.
 ///
 /// The flip itself is not here, and that is the layering rather than an
 /// omission: reversing is *rendering* — `hex::encode` one way, `encode_rev`

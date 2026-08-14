@@ -1,4 +1,4 @@
-//! § 2.1 — HASH256, Bitcoin's double SHA-256.
+//! HASH256, Bitcoin's double SHA-256.
 
 use super::sha256::sha256;
 

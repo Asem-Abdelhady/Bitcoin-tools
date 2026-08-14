@@ -123,8 +123,8 @@ pub fn hex_bytes_allowing_empty(
 /// annotation:
 ///
 /// ```
-/// use bitcoin_tools_web_server::services::error::ServiceError;
-/// use bitcoin_tools_web_server::services::input::hex_bytes_exact;
+/// use bitcoin_tools_server::services::error::ServiceError;
+/// use bitcoin_tools_server::services::input::hex_bytes_exact;
 ///
 /// let bytes: [u8; 4] = hex_bytes_exact("aabbccdd", "widget", |got| format!("got {got}"))?;
 /// assert_eq!(bytes, [0xaa, 0xbb, 0xcc, 0xdd]);

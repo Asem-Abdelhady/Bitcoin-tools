@@ -1,4 +1,4 @@
-//! § 6 — the eighty bytes every block is chained by.
+//! the eighty bytes every block is chained by.
 //!
 //! Two views, the same split [`transactions`](crate::transactions) makes:
 //! [`BlockHeader`] is the semantic model, and [`HeaderBreakdown`] is the wire
@@ -194,7 +194,7 @@ impl BlockHeader {
         out
     }
 
-    /// 6.1 — HASH256 of the eighty bytes.
+    /// HASH256 of the eighty bytes.
     ///
     /// The whole of the block's identity: a block *is* its header as far as
     /// the chain is concerned, and the transactions are attached to it by the
@@ -255,7 +255,7 @@ impl BlockHeader {
 /// Every field of a header as the literal hex bytes it occupies, in
 /// serialization order.
 ///
-/// The [`TxBreakdown`](crate::transactions::tx::TxBreakdown) of § 6: the view
+/// The [`TxBreakdown`](crate::transactions::tx::TxBreakdown) of a header: the view
 /// that answers "what do these eighty bytes mean", byte by byte.
 ///
 /// Not `Serialize`, matching `TxBreakdown`. A breakdown is already all

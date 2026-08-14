@@ -1,4 +1,5 @@
-//! § 6 against real mainnet blocks, which are its acceptance criteria.
+//! Block headers against real mainnet blocks, which are their acceptance
+//! criteria.
 //!
 //! Three suites, each testing something the others cannot:
 //!

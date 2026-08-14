@@ -1,4 +1,4 @@
-//! § 7 — Elliptic-curve operations over secp256k1.
+//! Elliptic-curve operations over secp256k1.
 //!
 //! The single point at which this crate touches curve arithmetic. Anything
 //! needing a scalar multiply goes through here rather than depending on the
@@ -9,7 +9,7 @@
 //! | File | Feature |
 //! |---|---|
 //! | `secp.rs` | The one `secp256k1` entry point: contexts, scalar and point types, and the tweaks BIP32 and BIP340 need |
-//! | `ecdsa.rs` | 7.1 ECDSA Sign, 7.2 ECDSA Verify, `Signature` (DER and compact) |
+//! | `ecdsa.rs` | ECDSA sign and verify, `Signature` (DER and compact) |
 //!
 //! Backend is the `secp256k1` crate — bindings to Bitcoin Core's
 //! libsecp256k1, which is constant-time and is what actually validates the

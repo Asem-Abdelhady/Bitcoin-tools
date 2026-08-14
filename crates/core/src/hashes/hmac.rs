@@ -1,4 +1,4 @@
-//! HMAC-SHA512 and PBKDF2 — the two constructions § 4 is built out of.
+//! HMAC-SHA512 and PBKDF2 — the two constructions BIP32 and BIP39 need.
 //!
 //! Neither is a Bitcoin invention and neither is interesting on its own. They
 //! are here because BIP32 defines every step of key derivation as an

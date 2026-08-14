@@ -1,4 +1,4 @@
-//! § 2.2 — HASH160, RIPEMD-160 of SHA-256.
+//! HASH160, RIPEMD-160 of SHA-256.
 
 use ripemd::{Digest, Ripemd160};
 

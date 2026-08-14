@@ -1,4 +1,4 @@
-//! 5.1 — assembling a transaction from its parts.
+//! assembling a transaction from its parts.
 //!
 //! The inverse of [`tx`](super::tx), and deliberately *not* a second
 //! serializer. [`Tx::encode`] already turns a transaction into consensus

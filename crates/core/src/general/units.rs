@@ -1,4 +1,4 @@
-//! 1.3 — Unit Converter: one amount in satoshis, µBTC, mBTC and BTC.
+//! Unit Converter: one amount in satoshis, µBTC, mBTC and BTC.
 //!
 //! # Money is an integer
 //!
@@ -393,7 +393,7 @@ impl Amount {
         out
     }
 
-    /// This amount in every denomination, ascending — the whole point of 1.3.
+    /// This amount in every denomination, ascending — the whole point of the type.
     ///
     /// ```
     /// use bitcoin_tools_core::general::{Amount, Denomination};

@@ -1,4 +1,4 @@
-//! § 4 — BIP39 mnemonics and BIP32 derivation.
+//! BIP39 mnemonics and BIP32 derivation.
 //!
 //! ## Both endpoints return secrets, and that is the point
 //!

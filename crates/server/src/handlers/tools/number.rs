@@ -1,4 +1,4 @@
-//! HTTP surface for 1.2.
+//! HTTP surface for the number converter.
 
 use axum::http::StatusCode;
 use axum::{Json, extract::rejection::JsonRejection};

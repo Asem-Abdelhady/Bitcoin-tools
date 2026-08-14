@@ -1,21 +1,21 @@
-//! 1.2 — Number Converter: one value in base 2, 10 or 16, shown in all three.
+//! Number Converter: one value in base 2, 10 or 16, shown in all three.
 //!
 //! # Why this is arbitrary-precision
 //!
 //! The obvious implementation is `u64::from_str_radix` and `format!("{:b}")`,
 //! and it is wrong for this crate. The numbers Bitcoin actually asks people to
-//! read in more than one base are 256-bit: a private key as a decimal integer
-//! (3.1), the secp256k1 group order a key must fall below, a difficulty target
-//! (6.2), a hash treated as the number it has to be less than. A converter
-//! that stops at 64 bits would refuse every one of them, and 3.1 would then
-//! carry a second, private implementation of decimal rendering — the copy
-//! worth not writing.
+//! read in more than one base are 256-bit: a private key as a decimal
+//! integer, the secp256k1 group order a key must fall below, a difficulty
+//! target, a hash treated as the number it has to be less than. A converter
+//! that stops at 64 bits would refuse every one of them, and
+//! [`keys`](crate::keys) would then carry a second, private implementation of
+//! decimal rendering — the copy worth not writing.
 //!
 //! So [`Number`] is an unsigned integer of no particular width, held as
 //! big-endian bytes. Nothing here is a general bignum library: parsing is
 //! multiply-accumulate and decimal rendering is repeated division, both
-//! quadratic in the width. That is the whole arithmetic requirement of
-//! features 1.2 and 3.1.
+//! quadratic in the width. That is the whole arithmetic requirement of this
+//! crate.
 //!
 //! Being quadratic, both doors into the type are bounded:
 //! [`Number::MAX_DIGITS`] for text through [`Number::parse`], and
@@ -285,7 +285,7 @@ impl Number {
     /// Take a big-endian byte array as a number, dropping leading zeros.
     ///
     /// This is the entry point for a value that is already bytes rather than
-    /// text — a 32-byte private key whose decimal form 3.1 has to show.
+    /// text — a 32-byte private key whose decimal form has to be shown.
     ///
     /// **Unbounded.** [`Number::MAX_DIGITS`] guards [`Number::parse`], not this,
     /// and [`Number::to_decimal`] is quadratic in the width: a 16 KiB buffer
@@ -522,8 +522,8 @@ impl fmt::Display for Number {
 /// numerically. It agrees with the derived [`PartialEq`] for the same reason —
 /// one value has exactly one representation.
 ///
-/// The type exists partly for this: 3.1 has to reject a private key at or
-/// above the secp256k1 group order, and that is a comparison between two
+/// The type exists partly for this: a private key at or above the secp256k1
+/// group order has to be rejected, and that is a comparison between two
 /// 256-bit numbers.
 impl Ord for Number {
     fn cmp(&self, other: &Self) -> Ordering {

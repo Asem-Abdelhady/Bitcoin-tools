@@ -16,9 +16,9 @@
 //!
 //! # There is no `Writer`
 //!
-//! [`Reader`] has no counterpart, and 5.1 is why. The plan used to say a
-//! `bytes::Writer` had to exist before the transaction builder could, because
-//! the builder would write bytes.
+//! [`Reader`] has no counterpart, and the transaction builder is why. The plan
+//! used to say a `bytes::Writer` had to exist before that builder could,
+//! because the builder would write bytes.
 //! [`TxBuilder`](crate::transactions::TxBuilder) does not: `Tx::encode` was
 //! already the serializer, so the builder assembles a
 //! [`Tx`](crate::transactions::Tx) and validates it. The one thing it needed
