@@ -292,7 +292,9 @@ mod tests {
     #[test]
     fn the_alphabet_omits_the_confusable_characters() {
         assert_eq!(ALPHABET.len(), 58);
-        for c in [b'0', b'O', b'I', b'l'] {
+        // Zero, capital O, capital I, lowercase L -- the four base58 leaves out
+        // because they are read wrong when a human copies an address.
+        for c in *b"0OIl" {
             assert!(
                 !ALPHABET.contains(&c),
                 "{} must not be in the alphabet",
