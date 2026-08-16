@@ -1,7 +1,8 @@
 # bitcoin-tools
 
 Decode and inspect Bitcoin's data formats — transactions, scripts, keys,
-addresses, HD wallets, and blocks — as a Rust library and as a JSON API over it.
+addresses, HD wallets, and blocks — as a Rust library, a JSON API, and a
+command-line tool.
 
 Everything is pure computation over bytes. There is no node, no network, no
 chain state: you hand it hex and it tells you what the hex means, with the
@@ -25,8 +26,9 @@ $ curl -s localhost:3000/transactions/script -H 'content-type: application/json'
 Requires Rust 1.87 or newer (edition 2024; `u64::is_multiple_of` sets the floor).
 
 ```console
-$ cargo run -p bitcoin-tools-server     # listens on 0.0.0.0:3000
-$ cargo test --workspace                # ~500 tests, mostly published vectors
+$ cargo run -p bitcoin-tools-server     # the API, on 0.0.0.0:3000
+$ cargo run -p bitcoin-tools-cli -- converter unit --bitcoin 1.5
+$ cargo test --workspace                # ~680 tests, mostly published vectors
 ```
 
 There is no configuration, no database and no state — the process binds a port
@@ -60,11 +62,18 @@ terminal.
 | Crate | Path | What it is |
 |---|---|---|
 | `bitcoin-tools-core` | [crates/core/](crates/core/) | The domain library, as a standalone publishable cargo package. No HTTP, no I/O, no framework. Its [README](crates/core/README.md) is the spec — feature status, layering, and the reasoning behind both. |
-| `bitcoin-tools-server` | [crates/server/](crates/server/) | The axum JSON API. Not published. |
-| `bitcoin-tools-vectors` | [crates/vectors/](crates/vectors/) | Known-good test vectors, shared by both test suites. Dev-dependency only. |
+| `bitcoin-tools-server` | [crates/server/](crates/server/) | The axum JSON API. See its [README](crates/server/README.md). Not published. |
+| `bitcoin-tools-cli` | [crates/cli/](crates/cli/) | The clap command-line tool: formatted output, `--json` for machines, input from arguments or JSON files. See its [README](crates/cli/README.md). Not published. |
+| `bitcoin-tools-vectors` | [crates/vectors/](crates/vectors/) | Known-good test vectors, shared by the other crates' test suites — including the `tools` answers both front ends must agree on. Dev-dependency only. |
 
-The split is load-bearing rather than cosmetic: core **cannot** reference the
-server, because it is a separate crate and the compiler says so.
+The split is load-bearing rather than cosmetic: core **cannot** reference either
+front end, because they are separate crates and the compiler says so.
+
+The server and the CLI are **peers**. Neither is the real interface, and where
+they answer the same question they answer it identically. Their *surfaces* may
+differ where the medium differs — the CLI says `converter base --hex ab12` where
+the API takes `{"value": "ab12", "base": "hexadecimal"}` — but the answers are
+pinned by shared vectors.
 
 Inside core, modules are layered and nothing imports upward —
 `hex`/`bytes`/`network` → `hashes`/`general` → `encoding`/`crypto` → `keys` →
@@ -86,157 +95,66 @@ values into strings — so it lives with the handler. A **request shape** is inp
 policy — which fields exist, which are optional, `deny_unknown_fields` — so it
 lives with the service that validates it.
 
-## Endpoints
+## The two front ends
 
-Fourteen, in six groups. All are `POST` and take `Content-Type: application/json`.
+The same fourteen operations, twice. Neither is the real interface: the core is
+shaped by neither, and where they answer the same question they answer it
+identically — pinned by shared vectors, not by intent.
 
-### General tools
+| Group | Operations | HTTP | Command line |
+|---|---|---|---|
+| General tools | Byte order, number bases, units | `/tools/*` | `converter` |
+| Keys | Generate a key; every address one produces | `/keys/*` | `keys` |
+| HD wallets | BIP39 sentences, BIP32 derivation | `/hd/*` | `hd` |
+| Transactions | Scripts, raw transactions, building one | `/transactions/*` | `transactions` |
+| Blocks | Header hash, header fields | `/blocks/*` | `blocks` |
+| Cryptography | ECDSA sign and verify | `/crypto/*` | `crypto` |
 
-| | Body | Returns |
-|---|---|---|
-| `/tools/reverse-bytes` | `{"hex"}` | The bytes flipped — wire order ⇄ the display order an explorer shows |
-| `/tools/number` | `{"value", "base"}` | The same value in `binary`, `decimal`, `hexadecimal`, plus its width |
-| `/tools/units` | `{"amount", "denomination"}` | The same amount in `satoshi`, `microbitcoin`, `millibitcoin`, `bitcoin` |
+**The endpoint reference — request and response shapes, worked examples, and the
+error-slug table a client branches on — is in
+[crates/server/README.md](crates/server/README.md).** Every route is `POST`,
+takes `Content-Type: application/json`, and returns JSON including its errors.
 
-```console
-$ … /tools/units -d '{"amount":"1.5","denomination":"bitcoin"}'
-{"satoshi":"150000000","microbitcoin":"1500000","millibitcoin":"1500",
- "bitcoin":"1.5","isMoneyRange":true}
-```
+**The command reference — every command with a runnable example — is in
+[crates/cli/README.md](crates/cli/README.md).**
 
-`base` and `denomination` are **required, never defaulted**. `10` is two, ten or
-sixteen; `1` is a satoshi or a hundred million of them. A default there would
-return a confident wrong answer rather than an error.
-
-Both take their value as a **string** and answer in strings, including the
-satoshi count. A JSON number is a double in most consumers, exact only below
-2⁵³ — and `/tools/number` exists so a 256-bit key can be read in decimal, while
-money is held in integer satoshis precisely so `0.1 + 0.2` cannot lose one.
-
-### Keys and addresses
-
-| | Body | Returns |
-|---|---|---|
-| `/keys/generate` | `{"network"?, "compressed"?}` | A new private key as hex, decimal, binary and WIF |
-| `/keys/public` | `{"privateKey", "network"?, "compressed"?}` | The public key and **every** address it produces, each split into its parts |
+Their *surfaces* may differ where the medium differs. The CLI says
+`converter base --hex ab12` where the API takes
+`{"value": "ab12", "base": "hexadecimal"}`, because a command line can put the
+notation in the flag and a JSON body has no better option than a field. Their
+answers do not differ:
 
 ```console
-$ … /keys/public -d '{"privateKey":"0000…0001"}'
-{"network":"mainnet","compressed":true,
- "publicKey":{"hex":"0279be66…","uncompressed":"0479be66…","xOnly":"79be66…",
-              "x":"79be66…","y":"483ada77…","pubkeyHash":"751e76e8…"},
- "addresses":{
-   "p2pkh":{"address":"1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
-            "scriptPubkey":"76a914751e76e8…88ac",
-            "base58":{"version":0,"versionHex":"00","hash":"751e76e8…",
-                      "checksum":"510d1634"}},
-   "p2shP2wpkh":{…},
-   "p2wpkh":{"address":"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
-             "bech32":{"hrp":"bc","witnessVersion":0,"program":"751e76e8…",
-                       "checksum":"v8f3t4"}},
-   "p2tr":{…}},
- "p2wpkhRedeemScript":"0014751e76e8…"}
+$ curl -s localhost:3000/tools/units -H 'content-type: application/json' \
+      -d '{"amount":"1.5","denomination":"bitcoin"}' | jq -S .
+$ bitcoin-tools converter unit --bitcoin 1.5 --json | jq -S .
 ```
 
-`network` defaults to mainnet and `compressed` to true. The domain deliberately
-gives `Network` no `Default` — picking one is a transport decision, not a domain
-fact, so the API states it in one place rather than four.
+Same object, both times. `crates/vectors/data/tools.json` holds the argv, the
+request body and the one response both must produce.
 
-### HD wallets
+### What the command line does that an HTTP body cannot
 
-| | Body | Returns |
-|---|---|---|
-| `/hd/mnemonic` | `{"wordCount"?, "passphrase"?, "network"?}` | A BIP39 sentence with its entropy, indices and checksum, the seed it derives, and the BIP32 master key |
-| `/hd/derive` | `{"seed", "path", "count"?, "startIndex"?, "network"?}` | The branch's extended keys, then each child with its private key, WIF, and full address set |
+- **The notation is the flag.** `converter base --hex ab12`. A value cannot
+  arrive without saying what it is written in, because no argument carries one
+  without the other. A JSON body has no better option than a field.
+- **A secret is never an argument.** There is no `--private-key`, no `--seed`
+  and no `--passphrase` — the flag names a *file*, and `-` is stdin. Arguments
+  are visible in `ps` to every user on the machine and land in shell history,
+  and neither is something you can take back.
+- **Two output modes, one value.** Formatted text for a terminal, or `--json`,
+  which is the API's response shape. They are not two code paths: one type,
+  whose `Serialize` is the JSON contract and whose `render` is the terminal one.
 
 ```console
-$ … /hd/derive -d '{"seed":"000102030405060708090a0b0c0d0e0f",
-                    "path":"m/84h/0h/0h/0","count":2}'
-{"network":"mainnet","purpose":"bip84",
- "branch":{"path":"m/84'/0'/0'/0","depth":4,"fingerprint":"b1cc03eb",
-           "parentFingerprint":"e889b6af","chainCode":"597354c4…",
-           "xprv":"xprvA2Fgj…","xpub":"xpub6FF39…"},
- "keys":[{"index":0,"path":"m/84'/0'/0'/0/0",
-          "privateKey":{"hex":"8d98d2f7…","wif":"L1xxTDd4RJ9GG7jZ…"},
-          "publicKey":"02ce3088…","pubkeyHash":"0f0d117a…",
-          "address":"bc1qpux3z758ulsxg69eptaakukraanqwtdxe5yy4c",
-          "addresses":{…}}, …]}
+$ bitcoin-tools blocks header 01000000…1dac2b7c
+$ bitcoin-tools keys public --private-key-file key.hex
+$ bitcoin-tools hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 5
+$ bitcoin-tools transactions splitter --input tx.json --json | jq .txid
 ```
 
-Apostrophe or `h` marks a hardened step; `purpose` is inferred from the path.
-BIP44/49/84/86 are what they are here — four purpose numbers over one algorithm,
-not four code paths.
-
-### Transactions
-
-| | Body | Returns |
-|---|---|---|
-| `/transactions/script` | `{"script"}` | Template kind, ASM, extracted fields, and every instruction with its offset, category and description |
-| `/transactions/splitter` | `{"tx"}` | Every wire field as the hex bytes it occupies, plus the txid |
-| `/transactions/builder` | `{"type", "version"?, "lockTime"?, "inputs", "outputs"}` | The serialized transaction, its txid, and its size, weight and vsize |
-
-```console
-$ … /transactions/builder -d '{"type":"legacy",
-      "inputs":[{"txid":"aa52ef52…","vout":0}],
-      "outputs":[{"amount":100000,"scriptPubkey":"76a914751e76e8…88ac"}]}'
-{"txid":"406f76f4d673e9031bd0d3d33cca9b916d87d659b3552a9e6c7117315bd1423b",
- "size":85,"weight":340,"vsize":85,"rawTx":"020000000160ae0e48…0000000000"}
-```
-
-`type` is the one builder field with no default, for the same reason `base` has
-none: it changes the bytes, the txid, and whether a witness survives at all.
-Everything else carries the domain's own default — version 2, locktime 0,
-sequence `0xffffffff`, empty `scriptSig`.
-
-The builder validates; it does not sign. A signature commits to a sighash, and a
-sighash needs the value and script of every output being spent, which a raw
-transaction does not carry. What it does refuse is the set of transactions that
-serialize cleanly and are still rejected by every node — no inputs, no outputs, a
-duplicated outpoint, the coinbase outpoint, an amount above 21 million, both
-halves of BIP144's witness rule, and `bad-txns-oversize`. Each check cites the
-Core rule it mirrors, and each gets its own error slug so a client can say which
-field to fix.
-
-### Blocks
-
-| | Body | Returns |
-|---|---|---|
-| `/blocks/hash` | `{"header"}` | The block hash, in both display and wire order |
-| `/blocks/header` | `{"header"}` | The eighty bytes as fields, with the target, difficulty, and whether the header meets it |
-
-```console
-$ … /blocks/header -d '{"header":"01000000…1dac2b7c"}'   # genesis
-{"blockHash":"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
- "version":1,"versionHex":"00000001","prevBlock":"00000000…",
- "merkleRoot":"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
- "time":1231006505,"bits":"1d00ffff","nonce":2083236893,
- "target":"00000000ffff0000000000000000000000000000000000000000000000000000",
- "difficulty":1.0,"meetsTarget":true}
-```
-
-`meetsTarget` closes the loop — it checks the header's own hash against the
-target its `bits` expand to, rather than asking you to trust either.
-
-### Cryptography
-
-| | Body | Returns |
-|---|---|---|
-| `/crypto/sign` | `{"privateKey", "messageHash", "compressed"?}` | The signature in DER and compact form, with `r`, `s` and `isLowS` |
-| `/crypto/verify` | `{"publicKey", "messageHash", "signature"}` | `valid`, the encoding the signature was read in, and the signature's parts |
-
-Signing is RFC 6979 deterministic: no RNG, and a repeated nonce — which hands an
-attacker the private key outright — is impossible unless the message repeats.
-Output is always low-`s`.
-
-A signature is read in whichever encoding its **length** says: exactly 64 bytes
-is compact, anything else is DER. `/crypto/verify` reports `encoding` back,
-because that rule is the server's inference rather than something the caller
-stated.
-
-A `false` answer is **not** an error. A signature that does not verify returns
-200 with `valid: false` — that is the question the endpoint exists to answer, and
-there is no sub-reason a caller could act on. Only bytes that are not a signature
-at all are a 400.
+Every command also reads its whole request from `--input <FILE>` in the API's
+own request shape, so one file drives both front ends.
 
 ## Errors
 
@@ -249,31 +167,14 @@ Every failure, including the 404 and 405 fallbacks, returns the same envelope:
 
 `error` is a stable kebab-case slug to branch on; `message` is for a human and
 carries the specifics — the offset, the size actually sent, the step of the path
-that failed, or which input of a build request was wrong. Slugs are shared across
-endpoints, so a client learns one vocabulary:
+that failed, or which input of a build request was wrong. Slugs are shared
+across endpoints, so a client learns one vocabulary rather than one per route.
+**The full table is in [crates/server/README.md](crates/server/README.md#errors).**
 
-| Slug | Status | Meaning |
-|---|---|---|
-| `empty-input` | 400 | Field was empty after trimming |
-| `invalid-hex` | 400 | Not hex, or odd length |
-| `input-too-large` | 413 | Past the domain size cap |
-| `malformed-json` | 400 | Body is not JSON |
-| `invalid-body` | 422 | Valid JSON, wrong shape or types |
-| `unsupported-media-type` | 415 | Missing or wrong `Content-Type` |
-| `unreadable-body` | 413 / 400 | Body could not be buffered — 413 past the route's transport cap, 400 if the stream failed |
-| `not-found` / `method-not-allowed` | 404 / 405 | No endpoint here; or wrong method |
+The CLI answers the same failures as exit codes: 0, 1 for bad input, and 2 for a
+usage mistake, which clap owns.
 
-…plus one slug per domain failure, each named for what it parses:
-`invalid-transaction`, `invalid-block-header`, `invalid-txid`,
-`invalid-private-key`, `invalid-public-key`, `invalid-signature`,
-`invalid-message-hash`, `invalid-word-count`, `invalid-seed`,
-`invalid-derivation-path`, `index-out-of-range`, `too-many-keys`,
-`invalid-number`, `invalid-amount`, `amount-too-precise`,
-`amount-out-of-range`, and the builder's per-rule set (`no-inputs`,
-`no-outputs`, `duplicate-input`, `null-prevout`, `segwit-without-witness`,
-`witness-on-legacy`, `transaction-too-large`).
-
-Two distinctions worth knowing when you write a client:
+Two distinctions worth knowing whichever front end you use:
 
 - **413 arrives under two slugs.** `unreadable-body` is the transport cap
   rejecting the request before the handler runs; `input-too-large` is the service
@@ -314,6 +215,13 @@ Likewise, `/hd/derive` takes a **seed**, and nothing in this API takes a
 mnemonic — so the BIP39-trained habit of writing down the words and the
 passphrase will not get you back here. Keep the seed.
 
+The CLI inherits all of that and adds the problem a CLI has and an API does not:
+**a secret is never an argument.** There is no `--private-key`, no `--seed` and
+no `--passphrase` — arguments are visible in `ps` to every user on the machine
+and land verbatim in shell history. The flag names a file instead, `-` means
+stdin, and a test asserts the rule against the generated help rather than against
+the documentation.
+
 ## Development
 
 ```console
@@ -324,7 +232,8 @@ $ cargo check -p bitcoin-tools-core --no-default-features   # `serde` is optiona
 ```
 
 Tests are vectors-first. Core asserts its decoder reproduces each published
-vector; the server asserts its HTTP response equals the same one, from the same
+vector; the server asserts its HTTP response equals the same one, and the CLI
+asserts its `--json` does too — all from the same
 [crates/vectors/](crates/vectors/) crate — never from a restated expectation.
 BIP32, BIP39, BIP173 and BIP350 each publish inputs that must be **refused**, and
 those are included: half of `hd_vectors.rs` is extended keys the decoder has to

@@ -13,10 +13,10 @@ secp256k1.
 
 ## The thing you are reviewing
 
-`bitcoin-tools-core` is **its own cargo package**, headed for crates.io. A
-future CLI and the axum server in `crates/server` both depend on it. Review it
-as a published library, not as part of a web app. That framing decides most
-calls:
+`bitcoin-tools-core` is **its own cargo package**, headed for crates.io. The
+axum server in `crates/server` and the clap CLI in `crates/cli` both depend on
+it. Review it as a published library, not as part of either front end. That
+framing decides most calls:
 
 - It must not know that HTTP exists, and must not be shaped around one caller.
 - Its public API is a contract two very different front ends have to live with,
@@ -45,9 +45,13 @@ judge whether what exists is *shaped* to accept them, not that they are missing.
 Review **only** `crates/core/**`, including its inline `#[cfg(test)]` modules and
 its README.
 
-**Never review** `crates/server/**` — a different reviewer owns those. You may read
-them *only* to check whether the core leaks into them or vice versa, and even
-then your finding must be about the core side of the boundary.
+**Never review** `crates/server/**` or `crates/cli/**` — a different reviewer owns
+each. You may read them *only* to check whether the core leaks into them or vice
+versa, and even then your finding must be about the core side of the boundary.
+
+Two front ends now exist rather than one, which sharpens the point of this
+crate: an API that is pleasant for exactly one of them is not finished. When
+judging a public item, ask what it costs the *other* caller.
 
 You may read `crates/core/tests/` to judge how well the core is covered, and you may report
 "this core behaviour is untested", but do not critique the API test harness.

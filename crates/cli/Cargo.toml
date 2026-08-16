@@ -1,0 +1,61 @@
+[package]
+name = "bitcoin-tools-cli"
+description = "A command-line interface over bitcoin-tools-core."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "bitcoin-tools"
+path = "src/main.rs"
+
+[dependencies]
+# Declared here rather than inherited from the workspace: cargo refuses
+# `default-features = false` on an inherited dependency, and choosing core's
+# features explicitly is the point.
+#
+# `serde` is **on**, and it is not decoration. Six of core's types cross this
+# crate's serde boundary: `Network`, `Purpose`, `Category`, `ScriptFields` and
+# `DecodeError` are serialized, and `Network` and `TxKind` are deserialized.
+#
+# Three of them have no spelling this crate could reproduce by hand. `Category`
+# has no `Display` at all; `ScriptFields` names each template's parts only in its
+# serde attributes; `DecodeError` *does* have a `Display` — the human mode prints
+# it — but its wire form is a tagged object (`{"error":"truncated","offset":…}`)
+# rather than that sentence. Both front ends emit all three, so re-spelling them
+# here is exactly the drift the shared vectors exist to catch.
+#
+# `Network` and `TxKind` are the ones that make this a compile error rather than a
+# preference: they are fields of this crate's own request and response types.
+#
+# `ScriptKind` is *not* in that set — it serializes through `display_serialize!`,
+# so a serde-off front end reproduces it with `to_string`. Nor are `BlockHeader`,
+# `Tx`, `Input`, `Output` or `OutPoint`: every response here is a view this crate
+# owns, built from strings, and those five are only ever domain values on the way
+# in. `Base` and `Denomination` are read through `input::from_str`, not serde.
+#
+# `rand` is on because two commands mint a secret: `keys generate` and
+# `hd mnemonic`. Core keeps it off by default so a decoder cannot reach an RNG by
+# accident, which is a statement about the library rather than about a tool whose
+# whole job includes generating a key on request.
+bitcoin-tools-core = { path = "../core", version = "0.1.0", default-features = false, features = [
+    "serde",
+    "rand",
+] }
+
+anstream.workspace = true
+anstyle.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+bitcoin-tools-vectors.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

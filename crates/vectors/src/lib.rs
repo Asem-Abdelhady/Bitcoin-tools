@@ -49,6 +49,19 @@ pub const ACCOUNTS: &str = include_str!("../data/accounts.json");
 /// every width mainnet has used.
 pub const BLOCKS: &str = include_str!("../data/blocks.json");
 
+/// The `tools` conversions, as both front ends see them.
+///
+/// Each entry carries one operation three ways: the CLI argv, the HTTP request
+/// body, and the **one** response both are expected to produce. The two front
+/// ends are peers and their answers are supposed to be identical, which is a
+/// claim their documentation makes and which nothing else checks — neither
+/// crate can depend on the other, so a shared file is where the agreement can
+/// live.
+///
+/// Adding a field to one front end's output makes the other's suite fail here,
+/// which is the point.
+pub const TOOLS: &str = include_str!("../data/tools.json");
+
 /// Parse one of the raw JSON constants into its array of vectors.
 ///
 /// # Panics
@@ -177,6 +190,16 @@ pub fn wycheproof_ecdsa() -> Value {
 #[must_use]
 pub fn blocks() -> Vec<Value> {
     parse(BLOCKS)
+}
+
+/// [`TOOLS`], parsed.
+///
+/// # Panics
+///
+/// If the file is not a JSON array. See [`parse`].
+#[must_use]
+pub fn tools() -> Vec<Value> {
+    parse(TOOLS)
 }
 
 #[cfg(test)]

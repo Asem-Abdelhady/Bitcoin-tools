@@ -19,4 +19,5 @@ Steps:
 6. Report to the user: what the reviewer found, what you changed, anything you
    pushed back on and why, and how many rounds it took.
 
-Never let this reviewer touch `crates/core/` — that is `/core-review`'s job.
+Never let this reviewer touch `crates/core/` or `crates/cli/` — those are
+`/core-review`'s and `/cli-review`'s jobs.
