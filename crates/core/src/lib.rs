@@ -71,3 +71,6 @@ pub mod keys;
 pub mod blocks;
 pub mod hd;
 pub mod transactions;
+
+
+fn   badly_formatted( )->u8{42}
