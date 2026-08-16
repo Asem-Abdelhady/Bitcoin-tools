@@ -312,21 +312,41 @@ mod tests {
         );
     }
 
+    /// A sentinel, not a memorable phrase.
+    ///
+    /// The sentence this test renders is **generated**, so a passphrase built
+    /// out of wordlist words can turn up in it by chance and fail the test for
+    /// a leak that never happened. `correct horse battery staple` did exactly
+    /// that: `horse` is BIP39 word 889, and twelve draws from 2048 hit it about
+    /// once in every 170 runs.
+    ///
+    /// The hyphens are what make this safe. A BIP39 sentence is lowercase
+    /// letters and spaces, entropy and seeds are hex, and the extended keys are
+    /// base58 — none of those alphabets contains `-`, so neither of the strings
+    /// below can appear in this response unless the passphrase itself was
+    /// printed.
+    const PASSPHRASE: &str = "correct-horse-battery-staple-42";
+
+    /// A prefix of [`PASSPHRASE`], so a leak of *part* of it still fails.
+    const LEAK_FRAGMENT: &str = "correct-horse";
+
     /// The request holds the passphrase, so its `Debug` redacts it — and the
     /// answer reports only *whether* one was used.
     #[test]
     fn the_passphrase_is_never_printed_back() {
         let request = Request {
             word_count: 12,
-            passphrase: "correct horse battery staple".to_owned(),
+            passphrase: PASSPHRASE.to_owned(),
             network: Network::Mainnet,
         };
         let rendered = format!("{request:?}");
-        assert!(!rendered.contains("horse"), "{rendered}");
+        assert!(!rendered.contains(PASSPHRASE), "{rendered}");
+        assert!(!rendered.contains(LEAK_FRAGMENT), "{rendered}");
 
-        let (_, _, _, response) = response("correct horse battery staple");
+        let (_, _, _, response) = response(PASSPHRASE);
         let json = serde_json::to_string(&response).unwrap();
-        assert!(!json.contains("horse"), "{json}");
+        assert!(!json.contains(PASSPHRASE), "{json}");
+        assert!(!json.contains(LEAK_FRAGMENT), "{json}");
         assert!(json.contains(r#""passphraseUsed":true"#), "{json}");
     }
 

@@ -1,0 +1,106 @@
+# The gate every push and pull request goes through.
+#
+# These are the same commands the project's own review loop runs before any
+# change is called done, in the same order, so a green run here means what a
+# clean local run means. Nothing is checked here that cannot be reproduced with
+# one command in a checkout.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the first one's answer irrelevant.
+# Superseded runs are cancelled -- except on master, where every commit's result
+# is worth keeping.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # A CI failure is read from a log, and the second run rarely says more than
+  # the first. Backtraces cost nothing here and save a round trip.
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Formatting needs no build, so it answers in seconds. Kept separate for
+  # exactly that reason: "you forgot to run cargo fmt" should not wait on a
+  # compile.
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  # Lints, feature combinations and the doc build share one target directory,
+  # so they compile the workspace once between them rather than three times.
+  check:
+    name: Lints, features and docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # `serde` is an optional feature of core, and a gated derive is easy to
+      # add without noticing. Both fronts ends switch it on, so nothing else in
+      # the workspace would catch it being required.
+      - name: Core without serde
+        run: cargo check -p bitcoin-tools-core --no-default-features
+      - name: Core with every feature
+        run: cargo check -p bitcoin-tools-core --all-features
+
+      # Scoped to the two published crates, because this exists to protect the
+      # docs.rs build and docs.rs never sees the server. The server has its own
+      # rustdoc warnings, all of them intra-doc links to private items; running
+      # this over the workspace would fail on those, which is a real thing to
+      # fix but not this gate's job.
+      - name: Docs
+        run: cargo doc -p bitcoin-tools-core -p bitcoin-tools --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing is a fact worth having about the other, so the
+      # matrix runs to completion instead of cancelling its siblings.
+      fail-fast: false
+      matrix:
+        # Windows is deliberately absent: two CLI tests drive `sh` to run the
+        # piped examples printed in the help, and a third asserts broken-pipe
+        # behaviour. Both are Unix-shaped. Adding Windows means gating those
+        # tests first, not just adding a row here.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  # The manifest claims 1.87, and a claim nothing checks drifts the first time
+  # someone uses a newer API. `--all-targets` so the test suite is held to it too.
+  msrv:
+    name: MSRV (1.87)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.87
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-targets
