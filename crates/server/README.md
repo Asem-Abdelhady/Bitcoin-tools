@@ -6,10 +6,9 @@ Fourteen endpoints, no state, no configuration: the process binds a port and
 answers. Every route is `POST`, takes JSON, and returns JSON — including its
 errors.
 
-**Looking for the endpoint reference?** It is in the [workspace
-README](../../README.md): request and response shapes, worked examples, and the
-error-slug table a client branches on. This file is about how the crate is
-built and how to work in it.
+This file is both halves: the **endpoint reference** a client codes against,
+and the **crate's construction** a contributor works in. Skip to
+[Layers](#layers) for the second.
 
 `publish = false`. It exists to expose core over HTTP, and deliberately holds no
 Bitcoin logic of its own.
@@ -18,6 +17,166 @@ Bitcoin logic of its own.
 $ cargo run -p bitcoin-tools-server           # 0.0.0.0:3000
 $ cargo test -p bitcoin-tools-server
 ```
+
+## Endpoints
+
+Fourteen, in six groups. All are `POST` and take `Content-Type: application/json`.
+
+### General tools
+
+| | Body | Returns |
+|---|---|---|
+| `/tools/reverse-bytes` | `{"hex"}` | The bytes flipped — wire order ⇄ the display order an explorer shows |
+| `/tools/number` | `{"value", "base"}` | The same value in `binary`, `decimal`, `hexadecimal`, plus its width |
+| `/tools/units` | `{"amount", "denomination"}` | The same amount in `satoshi`, `microbitcoin`, `millibitcoin`, `bitcoin` |
+
+```console
+$ … /tools/units -d '{"amount":"1.5","denomination":"bitcoin"}'
+{"satoshi":"150000000","microbitcoin":"1500000","millibitcoin":"1500",
+ "bitcoin":"1.5","isMoneyRange":true}
+```
+
+`base` and `denomination` are **required, never defaulted**. `10` is two, ten or
+sixteen; `1` is a satoshi or a hundred million of them. A default there would
+return a confident wrong answer rather than an error.
+
+Both take their value as a **string** and answer in strings, including the
+satoshi count. A JSON number is a double in most consumers, exact only below
+2⁵³ — and `/tools/number` exists so a 256-bit key can be read in decimal, while
+money is held in integer satoshis precisely so `0.1 + 0.2` cannot lose one.
+
+### Keys and addresses
+
+| | Body | Returns |
+|---|---|---|
+| `/keys/generate` | `{"network"?, "compressed"?}` | A new private key as hex, decimal, binary and WIF |
+| `/keys/public` | `{"privateKey", "network"?, "compressed"?}` | The public key and **every** address it produces, each split into its parts |
+
+```console
+$ … /keys/public -d '{"privateKey":"0000…0001"}'
+{"network":"mainnet","compressed":true,
+ "publicKey":{"hex":"0279be66…","uncompressed":"0479be66…","xOnly":"79be66…",
+              "x":"79be66…","y":"483ada77…","pubkeyHash":"751e76e8…"},
+ "addresses":{
+   "p2pkh":{"address":"1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+            "scriptPubkey":"76a914751e76e8…88ac",
+            "base58":{"version":0,"versionHex":"00","hash":"751e76e8…",
+                      "checksum":"510d1634"}},
+   "p2shP2wpkh":{…},
+   "p2wpkh":{"address":"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+             "bech32":{"hrp":"bc","witnessVersion":0,"program":"751e76e8…",
+                       "checksum":"v8f3t4"}},
+   "p2tr":{…}},
+ "p2wpkhRedeemScript":"0014751e76e8…"}
+```
+
+`network` defaults to mainnet and `compressed` to true. The domain deliberately
+gives `Network` no `Default` — picking one is a transport decision, not a domain
+fact, so the API states it in one place rather than four.
+
+### HD wallets
+
+| | Body | Returns |
+|---|---|---|
+| `/hd/mnemonic` | `{"wordCount"?, "passphrase"?, "network"?}` | A BIP39 sentence with its entropy, indices and checksum, the seed it derives, and the BIP32 master key |
+| `/hd/derive` | `{"seed", "path", "count"?, "startIndex"?, "network"?}` | The branch's extended keys, then each child with its private key, WIF, and full address set |
+
+```console
+$ … /hd/derive -d '{"seed":"000102030405060708090a0b0c0d0e0f",
+                    "path":"m/84h/0h/0h/0","count":2}'
+{"network":"mainnet","purpose":"bip84",
+ "branch":{"path":"m/84'/0'/0'/0","depth":4,"fingerprint":"b1cc03eb",
+           "parentFingerprint":"e889b6af","chainCode":"597354c4…",
+           "xprv":"xprvA2Fgj…","xpub":"xpub6FF39…"},
+ "keys":[{"index":0,"path":"m/84'/0'/0'/0/0",
+          "privateKey":{"hex":"8d98d2f7…","wif":"L1xxTDd4RJ9GG7jZ…"},
+          "publicKey":"02ce3088…","pubkeyHash":"0f0d117a…",
+          "address":"bc1qpux3z758ulsxg69eptaakukraanqwtdxe5yy4c",
+          "addresses":{…}}, …]}
+```
+
+Apostrophe or `h` marks a hardened step; `purpose` is inferred from the path.
+BIP44/49/84/86 are what they are here — four purpose numbers over one algorithm,
+not four code paths.
+
+### Transactions
+
+| | Body | Returns |
+|---|---|---|
+| `/transactions/script` | `{"script"}` | Template kind, ASM, extracted fields, and every instruction with its offset, category and description |
+| `/transactions/splitter` | `{"tx"}` | Every wire field as the hex bytes it occupies, plus the txid |
+| `/transactions/builder` | `{"type", "version"?, "lockTime"?, "inputs", "outputs"}` | The serialized transaction, its txid, and its size, weight and vsize |
+
+```console
+$ … /transactions/builder -d '{"type":"legacy",
+      "inputs":[{"txid":"aa52ef52f47e26a3e0bd0e8de4b7c0e3e2d2c1b0a9f8e7d6c5b4a39281706150",
+                 "vout":0}],
+      "outputs":[{"amount":100000,
+                  "scriptPubkey":"76a914751e76e8199196d454941c45d1b3a323f1433bd688ac"}]}'
+{"txid":"284bd5daab2af3babc2400aa7c8e87905a2144b8850714a3f16628ec28dacac4",
+ "size":85,"weight":340,"vsize":85,
+ "rawTx":"02000000015061708192a3b4c5d6e7f8a9b0c1d2e2e3c0b7e48d0ebde0a3267ef452ef52aa\
+0000000000ffffffff01a0860100000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000"}
+```
+
+The `txid` going in is in **display** order and comes back out of the `rawTx` in
+wire order — `…52ef52aa` at the front of the input, reversed. That is not a
+discrepancy; it is the thing this whole API exists to make visible.
+
+`type` is the one builder field with no default, for the same reason `base` has
+none: it changes the bytes, the txid, and whether a witness survives at all.
+Everything else carries the domain's own default — version 2, locktime 0,
+sequence `0xffffffff`, empty `scriptSig`.
+
+The builder validates; it does not sign. A signature commits to a sighash, and a
+sighash needs the value and script of every output being spent, which a raw
+transaction does not carry. What it does refuse is the set of transactions that
+serialize cleanly and are still rejected by every node — no inputs, no outputs, a
+duplicated outpoint, the coinbase outpoint, an amount above 21 million, both
+halves of BIP144's witness rule, and `bad-txns-oversize`. Each check cites the
+Core rule it mirrors, and each gets its own error slug so a client can say which
+field to fix.
+
+### Blocks
+
+| | Body | Returns |
+|---|---|---|
+| `/blocks/hash` | `{"header"}` | The block hash, in both display and wire order |
+| `/blocks/header` | `{"header"}` | The eighty bytes as fields, with the target, difficulty, and whether the header meets it |
+
+```console
+$ … /blocks/header -d '{"header":"01000000…1dac2b7c"}'   # genesis
+{"blockHash":"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+ "version":1,"versionHex":"00000001","prevBlock":"00000000…",
+ "merkleRoot":"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+ "time":1231006505,"bits":"1d00ffff","nonce":2083236893,
+ "target":"00000000ffff0000000000000000000000000000000000000000000000000000",
+ "difficulty":1.0,"meetsTarget":true}
+```
+
+`meetsTarget` closes the loop — it checks the header's own hash against the
+target its `bits` expand to, rather than asking you to trust either.
+
+### Cryptography
+
+| | Body | Returns |
+|---|---|---|
+| `/crypto/sign` | `{"privateKey", "messageHash", "compressed"?}` | The signature in DER and compact form, with `r`, `s` and `isLowS` |
+| `/crypto/verify` | `{"publicKey", "messageHash", "signature"}` | `valid`, the encoding the signature was read in, and the signature's parts |
+
+Signing is RFC 6979 deterministic: no RNG, and a repeated nonce — which hands an
+attacker the private key outright — is impossible unless the message repeats.
+Output is always low-`s`.
+
+A signature is read in whichever encoding its **length** says: exactly 64 bytes
+is compact, anything else is DER. `/crypto/verify` reports `encoding` back,
+because that rule is the server's inference rather than something the caller
+stated.
+
+A `false` answer is **not** an error. A signature that does not verify returns
+200 with `valid: false` — that is the question the endpoint exists to answer, and
+there is no sub-reason a caller could act on. Only bytes that are not a signature
+at all are a 400.
 
 ## Layers
 
@@ -149,8 +308,22 @@ One envelope, everywhere, including the 404 and 405 fallbacks:
 ```
 
 `error` is a stable kebab-case slug produced by `ApiError::slug`; `message` is
-for a human and carries the specifics. The full slug table is in the [workspace
-README](../../README.md#errors). What matters when you are adding one:
+for a human and carries the specifics — the offset, the size actually sent, the
+step of the path that failed, or which input of a build request was wrong. Slugs
+are shared across endpoints, so a client learns one vocabulary.
+
+| Slug | Status | Meaning |
+|---|---|---|
+| `empty-input` | 400 | Field was empty after trimming |
+| `invalid-hex` | 400 | Not hex, or odd length |
+| `input-too-large` | 413 | Past the domain size cap |
+| `malformed-json` | 400 | Body is not JSON |
+| `invalid-body` | 422 | Valid JSON, wrong shape or types |
+| `unsupported-media-type` | 415 | Missing or wrong `Content-Type` |
+| `unreadable-body` | 413 / 400 | Body could not be buffered — 413 past the route's transport cap, 400 if the stream failed |
+| `not-found` / `method-not-allowed` | 404 / 405 | No endpoint here; or wrong method |
+
+What matters when you are adding one:
 
 - **Reuse a slug when the client's fix is the same.** A field-level hex problem
   inside a build request keeps `invalid-hex` and adds the position to the

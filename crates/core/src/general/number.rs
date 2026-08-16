@@ -90,7 +90,7 @@ name_table! {
     /// and the radix itself — `hex`, `16` and `hexadecimal` are all things a
     /// person types into a `--base` flag.
     ///
-    /// This exists so a CLI built with `--no-default-features` can read a base
+    /// This exists so a consumer built with `--no-default-features` can read a base
     /// from an argument without hand-writing the match that the `serde`
     /// feature would otherwise be the only source of.
     Base => UnknownBase,

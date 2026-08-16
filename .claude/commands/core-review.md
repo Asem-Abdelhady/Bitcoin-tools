@@ -21,6 +21,7 @@ Steps:
 6. Report: what it found, what you changed, what you pushed back on and why,
    and how many rounds it took.
 
-Never let this reviewer touch `crates/server/**` — that is `/rust-review`'s job.
+Never let this reviewer touch `crates/server/**` or `crates/cli/**` — those are
+`/rust-review`'s and `/cli-review`'s jobs.
 
 Keep `crates/core/README.md` in step with any structural change you make.

@@ -1,18 +1,25 @@
 # bitcoin-tools
 
-A cargo workspace: a Bitcoin domain library, and an axum JSON API over it.
+A cargo workspace: a Bitcoin domain library, and two front ends over it — an
+axum JSON API and a clap CLI.
 
 ## Workspace
 
 | Crate | Path | What it is |
 |---|---|---|
 | `bitcoin-tools-core` | `crates/core/` | The domain library. Published. No HTTP, no I/O, no framework. See its [README](crates/core/README.md) — it is the spec. |
-| `bitcoin-tools-server` | `crates/server/` | The axum API. `publish = false`. |
-| `bitcoin-tools-vectors` | `crates/vectors/` | Known-good test vectors, shared by both test suites. `publish = false`, dev-dependency only. |
+| `bitcoin-tools-server` | `crates/server/` | The axum API. See its [README](crates/server/README.md). `publish = false`. |
+| `bitcoin-tools-cli` | `crates/cli/` | The clap CLI: formatted terminal output, `--json` for machines, input from arguments or JSON files. Its notation flags carry their value — `converter base --hex ab12` — so a value cannot arrive without saying what it is written in. See its [README](crates/cli/README.md). `publish = false`. |
+| `bitcoin-tools-vectors` | `crates/vectors/` | Known-good test vectors, shared by the other crates' test suites. `publish = false`, dev-dependency only. |
 
-The split is load-bearing: core **cannot** reference the server, because it is
-a separate crate and the compiler says so. That was a convention before; it is
-now a build error.
+The split is load-bearing: core **cannot** reference either front end, because
+they are separate crates and the compiler says so. That was a convention
+before; it is now a build error.
+
+The server and the CLI are **peers**. Neither is the real interface, the core
+is shaped by neither, and where they answer the same question they must not
+disagree — a default, a hex input policy, or a rendered address that differs
+between them is a bug a user experiences as flakiness.
 
 ## Server layers
 
@@ -63,21 +70,27 @@ a status and a slug. If you find yourself writing an `ErrorBody`, an
 **After writing or changing any Rust code, you must run the review loop before
 reporting the work as done.** Not optional, however small the change.
 
-Two reviewers own disjoint halves of the tree. Pick by what you touched; if a
-change spans both, run both loops.
+Three reviewers own disjoint thirds of the tree. Pick by what you touched; if a
+change spans two, run both loops.
 
-| You changed | Reviewer | Forbidden from reading for critique |
-|---|---|---|
-| `crates/server/**` | `rust-api-reviewer` | `crates/core/**` |
-| `crates/core/**` (incl. its README) | `rust-core-reviewer` | `crates/server/**` |
+| You changed | Reviewer | Command | Forbidden from reading for critique |
+|---|---|---|---|
+| `crates/server/**` | `rust-api-reviewer` | `/rust-review` | `crates/core/**`, `crates/cli/**` |
+| `crates/core/**` (incl. its README) | `rust-core-reviewer` | `/core-review` | `crates/server/**`, `crates/cli/**` |
+| `crates/cli/**` | `rust-cli-reviewer` | `/cli-review` | `crates/core/**`, `crates/server/**` |
 
 `crates/vectors/` belongs to whichever reviewer's tests changed.
 
-`rust-core-reviewer` judges core as a **published cargo package** that a future
-CLI and this server both depend on — public API design, no panics on public
-paths, no framework leakage. See
-[crates/core/README.md](crates/core/README.md) for the feature set and the
-layering it reviews against.
+`rust-core-reviewer` judges core as a **published cargo package** that both
+front ends depend on — public API design, no panics on public paths, no
+framework leakage. See [crates/core/README.md](crates/core/README.md) for the
+feature set and the layering it reviews against.
+
+`rust-cli-reviewer` judges the CLI's argument surface and its `--json` schema
+as a **published contract** someone will script against, and spends its
+attention on the four things a CLI gets wrong that a library cannot: the two
+output modes drifting apart, stdout/stderr and exit-code discipline, secrets
+reaching `argv`, and Bitcoin logic leaking out of core into the front end.
 
 1. Run `cargo fmt --all`, `cargo clippy --workspace --all-targets`, and
    `cargo test --workspace`. Touching core also means
@@ -99,8 +112,8 @@ Do not spawn a new reviewer per round, and do not stop at the first round of
 feedback. If you and the agent still disagree after three rounds, stop and
 surface the disagreement to the user rather than looping.
 
-Each reviewer's exclusion is in its own definition. Do not override either —
-they are what keep the two reviews independent.
+Each reviewer's exclusion is in its own definition. Do not override any of
+them — they are what keep the three reviews independent.
 
 ## Conventions
 
@@ -252,13 +265,15 @@ logging is a planned feature, and the first `tracing` layer anyone adds formats
 an extractor's output with `{:?}`.
 
 **Only the leaves need writing.** A derived `Debug` calls each field's impl, so
-redaction propagates through a composite for free. The eight types that hold a
-secret each write their own — the three requests `DeriveRequest`,
-`GenerateMnemonicRequest` and `PublicKeyRequest`, and the five response views
-`PrivateKeyView`, `MnemonicView`, `ExtendedKeyView`, `DerivedPrivateKeyView` and
-`GenerateMnemonicResponse`, the last being the one composite carrying a
-plaintext field of its own. `GenerateKeyResponse`, `DerivedKeyView` and
-`DeriveResponse` hold secrets only through those fields, so they still derive.
+redaction propagates through a composite for free. Ten types write their own:
+the four requests `SignRequest`, `DeriveRequest`, `GenerateMnemonicRequest` and
+`PublicKeyRequest`; the five response views `PrivateKeyView`, `MnemonicView`,
+`ExtendedKeyView`, `DerivedPrivateKeyView` and `GenerateMnemonicResponse`; and
+the service value `GeneratedMnemonic`, the one place a mnemonic, a seed and an
+`Xpriv` sit together, where the seed is a bare `[u8; 64]` that would print in
+full. `GenerateKeyResponse`, `DerivedKeyView` and `DeriveResponse` hold secrets
+only through those fields, so they still derive. **Grep for `impl fmt::Debug`
+rather than trusting this list** — it has gone stale once already.
 
 Each impl redacts the secret fields and keeps printing the rest, and each has a
 test asserting *both* — a redaction that blanked everything would pass half a

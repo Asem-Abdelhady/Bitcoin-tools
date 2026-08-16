@@ -24,9 +24,11 @@ all-features = true
 
 [features]
 default = ["serde"]
-# Derives on the value types a caller renders. On by default because the web
-# server needs it; a CLI turns it off. Anything gated here must also compile
-# with `--no-default-features`.
+# Derives on the value types a caller renders. On by default because a consumer
+# that emits JSON needs it: `Category`, `ScriptFields` and `DecodeError` have no
+# spelling outside their serde attributes. A consumer that only formats text can
+# turn it off and read values through `FromStr`. Anything gated here must also
+# compile with `--no-default-features`.
 serde = ["dep:serde"]
 # Key *generation*. Off by default: decoding an existing key has no reason to
 # link an RNG, and a tool that only inspects should not be able to mint a

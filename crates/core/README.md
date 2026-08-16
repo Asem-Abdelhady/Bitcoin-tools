@@ -334,7 +334,7 @@ needs the second.
 
 | Feature | Default | What it adds |
 |---|---|---|
-| `serde` | **on** | `Serialize` on the value types a caller renders, plus `Deserialize` on the few that are *inputs* — `Network`, `Base`, `Denomination` and `TxKind` each name a choice a request makes, so they have to be read as well as written. The web server needs this; a CLI turns it off and uses `FromStr`, which every one of those types also has. |
+| `serde` | **on** | `Serialize` on the value types a caller renders, plus `Deserialize` on the five that are *inputs* — `Network`, `Base`, `Denomination`, `Purpose` and `TxKind` each name a choice a request makes, so they have to be read as well as written; each also has `FromStr`, which is how a consumer reads them with this feature off. Turn it off if you only format text. Keep it if you emit JSON, and especially if two front ends of yours have to agree on it: `Category`, `ScriptFields`, `DecodeError` and the field names of `BlockHeader`, `Tx`, `Input`, `Output` and `OutPoint` have no spelling outside their serde attributes — `Category` has no `Display` at all — so a hand-written copy is one release from disagreeing. Most types with a `Display` serialize as exactly that string, so those two renderings cannot drift. The exceptions are `Amount` and `WitnessVersion`, which are `serde(transparent)` over the integer they wrap — `Amount`'s `Display` says `1500 sat` where its JSON says `1500`. |
 | `rand` | off | `PrivateKey::generate` and `Mnemonic::generate`. Off by default: inspecting a key has no reason to link an RNG, and a tool that only decodes should not be able to mint a secret by accident. |
 
 Anything gated must also compile without it:
