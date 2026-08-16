@@ -287,7 +287,11 @@ fn every_word_count_carries_its_own_entropy() {
 #[test]
 fn a_passphrase_is_used_and_never_echoed() {
     let dir = tempfile::tempdir().expect("a temp dir");
-    let passphrase = "correct horse battery staple";
+    // Hyphenated on purpose. The sentence is generated, so a passphrase made of
+    // wordlist words can appear in it by chance -- `horse` is a BIP39 word, and
+    // asserting on it failed about one run in 170 for a leak that never
+    // happened. No BIP39 sentence, hex seed or base58 key can contain `-`.
+    let passphrase = "correct-horse-battery-staple-42";
     let file = file_arg(&dir, "pass.txt", passphrase);
 
     let args = ["hd", "mnemonic", "--passphrase-file", &file];
@@ -297,7 +301,7 @@ fn a_passphrase_is_used_and_never_echoed() {
     assert_eq!(json["passphraseUsed"], true);
     for output in [&json.to_string(), &human] {
         assert!(
-            !output.contains(passphrase) && !output.contains("horse"),
+            !output.contains(passphrase) && !output.contains("correct-horse"),
             "the passphrase was printed:\n{output}"
         );
     }
