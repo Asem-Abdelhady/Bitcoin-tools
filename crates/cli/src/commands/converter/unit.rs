@@ -22,9 +22,9 @@ use crate::output::{Context, Fields, Output, yes_no};
 /// The four units and `--input` are one required, non-multiple [`ArgGroup`],
 /// so "exactly one of these five" is declared once rather than checked here.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools converter unit \
+#[command(override_usage = "bt converter unit \
                             --satoshi|--microbitcoin|--millibitcoin|--bitcoin <AMOUNT>\n\
-                          \x20      bitcoin-tools converter unit --input <FILE>")]
+                          \x20      bt converter unit --input <FILE>")]
 #[command(group = ArgGroup::new("source")
     .args(["satoshi", "microbitcoin", "millibitcoin", "bitcoin", "input"])
     .required(true))]

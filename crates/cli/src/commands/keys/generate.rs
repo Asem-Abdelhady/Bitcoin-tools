@@ -25,8 +25,8 @@ use crate::output::{Context, Fields, Output, yes_no};
 /// mutually-exclusive group over all three would forbid the ordinary case.
 #[derive(Debug, clap::Args)]
 #[command(
-    override_usage = "bitcoin-tools keys generate [--network <NETWORK>] [--uncompressed]\n\
-                          \x20      bitcoin-tools keys generate --input <FILE>"
+    override_usage = "bt keys generate [--network <NETWORK>] [--uncompressed]\n\
+                          \x20      bt keys generate --input <FILE>"
 )]
 pub struct Args {
     /// Which network the key is for: mainnet, testnet, signet or regtest.

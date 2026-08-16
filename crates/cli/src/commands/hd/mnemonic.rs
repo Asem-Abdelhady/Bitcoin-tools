@@ -42,9 +42,9 @@ fn word_count(value: &str) -> Result<usize, String> {
 /// them, rather than joining them in a group that would forbid using two
 /// together.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools hd mnemonic [--words <N>] \
+#[command(override_usage = "bt hd mnemonic [--words <N>] \
                             [--passphrase-file <FILE>] [--network <NETWORK>]\n\
-                          \x20      bitcoin-tools hd mnemonic --input <FILE>")]
+                          \x20      bt hd mnemonic --input <FILE>")]
 pub struct Args {
     /// How many words: 12, 15, 18, 21 or 24.
     ///

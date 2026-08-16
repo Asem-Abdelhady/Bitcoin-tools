@@ -40,11 +40,9 @@ const fn default_count() -> u32 {
 /// is not a secret and is an ordinary flag — but it is *required*, because there
 /// is no sensible default branch: `m` and `m/84'/0'/0'/0` are different wallets.
 #[derive(Debug, clap::Args)]
-#[command(
-    override_usage = "bitcoin-tools hd derive --seed-file <FILE> --path <PATH> \
+#[command(override_usage = "bt hd derive --seed-file <FILE> --path <PATH> \
                             [--count <N>] [--start-index <N>]\n\
-                          \x20      bitcoin-tools hd derive --input <FILE>"
-)]
+                          \x20      bt hd derive --input <FILE>")]
 pub struct Args {
     /// A file holding the seed as 32–128 hex digits, or `-` for stdin.
     ///

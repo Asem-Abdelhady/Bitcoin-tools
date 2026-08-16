@@ -20,11 +20,25 @@ use crate::output::{Context, Format};
 /// Decode and inspect Bitcoin's data formats.
 #[derive(Debug, Parser)]
 #[command(
-    name = "bitcoin-tools",
+    name = "bt",
     version,
     about,
-    long_about = "Decode and inspect Bitcoin's data formats: transactions, scripts, keys, \
-                  addresses, HD wallets, and blocks.\n\n\
+    // `bt` is two characters, so a user may well have another one on `$PATH`
+    // and `cargo install` will not warn them. `bt --version` is where they will
+    // look and where a bug report is pasted from, so the long form says which
+    // package this is. `-V` stays the bare `bt 0.1.0`.
+    long_version = concat!(
+        env!("CARGO_PKG_VERSION"),
+        "\npackage:    ",
+        env!("CARGO_PKG_NAME"),
+        "\nrepository: ",
+        env!("CARGO_PKG_REPOSITORY"),
+    ),
+    // Opens with the sentence `about` prints, which is `description` from the
+    // manifest — otherwise `-h` and `--help` summarise the program differently
+    // and the crates.io page is a third wording again.
+    long_about = "Decode and inspect Bitcoin data from the terminal: transactions, scripts, \
+                  keys, addresses, HD wallets, and blocks.\n\n\
                   Every command prints formatted text for a terminal, or the same values as \
                   JSON with --json. Commands that take a request can read it from arguments \
                   or from a JSON file with --input.",

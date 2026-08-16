@@ -83,7 +83,7 @@ fn json_mode_puts_nothing_but_json_on_stdout() {
 
 /// A closed pipe is not a failure, in either mode.
 ///
-/// `bitcoin-tools … | head` closes stdout as soon as it has its line. Rust
+/// `bt … | head` closes stdout as soon as it has its line. Rust
 /// suppresses `SIGPIPE`, so that arrives as an ordinary write error — and a
 /// program that reported it would make every correct pipeline print a spurious
 /// failure and exit non-zero.
@@ -101,7 +101,7 @@ fn a_closed_pipe_is_not_a_failure() {
             // `std::process::Command`, not `assert_cmd`'s: this needs the child
             // handle so the read end can be dropped mid-write, which the
             // assertion wrapper does not expose.
-            let mut child = Command::new(env!("CARGO_BIN_EXE_bitcoin-tools"))
+            let mut child = Command::new(env!("CARGO_BIN_EXE_bt"))
                 .args(&argv)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())

@@ -203,18 +203,18 @@ the workspace root manifest, then read the code. Run these yourself rather than
 trusting a claim that they are clean:
 
 ```
-cargo clippy -p bitcoin-tools-cli --all-targets
-cargo test -p bitcoin-tools-cli
-cargo run -p bitcoin-tools-cli -- --help
+cargo clippy -p bitcoin-tools --all-targets
+cargo test -p bitcoin-tools
+cargo run -p bitcoin-tools -- --help
 ```
 
 Then actually **use it**, because that is where CLI defects live and reading
 will not find them. Run a representative subcommand three ways and compare:
 
 ```
-cargo run -p bitcoin-tools-cli -- <subcommand> <args>
-cargo run -p bitcoin-tools-cli -- <subcommand> <args> --json | jq .
-cargo run -p bitcoin-tools-cli -- <subcommand> <args> --json > /dev/null
+cargo run -p bitcoin-tools -- <subcommand> <args>
+cargo run -p bitcoin-tools -- <subcommand> <args> --json | jq .
+cargo run -p bitcoin-tools -- <subcommand> <args> --json > /dev/null
 ```
 
 The third prints nothing if the streams are right. Also run a failing case and

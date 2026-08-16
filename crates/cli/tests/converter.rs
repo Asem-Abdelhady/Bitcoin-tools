@@ -425,7 +425,7 @@ fn a_closed_pipe_is_not_a_failure() {
         let path = dir.path().join("big.json");
         std::fs::write(&path, &big).unwrap();
 
-        let mut child = Command::new(env!("CARGO_BIN_EXE_bitcoin-tools"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_bt"))
             .args(["converter", "reverse-bytes", "--input"])
             .arg(&path)
             .args(mode)
@@ -513,7 +513,7 @@ fn a_rejected_value_is_not_echoed_back_in_full() {
 /// tried the safe way, watched it error, and reached for `--hex $KEY` was walked
 /// into the exposure the note is there to prevent.
 ///
-/// Only the piped forms are run. A `bitcoin-tools …` line with no pipe is
+/// Only the piped forms are run. A `bt …` line with no pipe is
 /// illustrative and its placeholder values are not meant to parse.
 #[test]
 fn every_piped_command_in_the_help_actually_runs() {
@@ -530,7 +530,7 @@ fn every_piped_command_in_the_help_actually_runs() {
 
         // A line ending in `|` continues on the next one — which is true of the
         // help text and of `sh`, so the two agree without any unwrapping. Only
-        // the piped forms are run: a `bitcoin-tools …` line with no pipe is
+        // the piped forms are run: a `bt …` line with no pipe is
         // illustrative and its placeholder values are not meant to parse.
         let mut lines = help.lines().map(str::trim).peekable();
         let mut commands = Vec::new();
@@ -551,7 +551,7 @@ fn every_piped_command_in_the_help_actually_runs() {
                 }
             }
 
-            if whole.contains("bitcoin-tools") {
+            if whole.contains("| bt ") {
                 commands.push(whole);
             }
         }
@@ -561,7 +561,10 @@ fn every_piped_command_in_the_help_actually_runs() {
             // the command can actually answer for.
             let script = format!(
                 "KEY=00000000000000000000000000000000000000000000000000000000000000ff\n{}",
-                line.replacen("bitcoin-tools", env!("CARGO_BIN_EXE_bitcoin-tools"), 1)
+                // `| bt ` and not ` bt `: the pipe is what is being looked for
+                // anyway, and it removes the question of whether a
+                // two-character name could match inside a word.
+                line.replacen("| bt ", &format!("| {} ", env!("CARGO_BIN_EXE_bt")), 1)
             );
 
             let output = std::process::Command::new("sh")

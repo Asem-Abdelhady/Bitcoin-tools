@@ -1,7 +1,16 @@
 [package]
-name = "bitcoin-tools-cli"
-description = "A command-line interface over bitcoin-tools-core."
-publish = false
+name = "bitcoin-tools"
+description = "Decode and inspect Bitcoin data from the terminal: transactions, scripts, keys, addresses, HD wallets, and blocks."
+keywords = ["bitcoin", "cli", "transaction", "address", "bip32"]
+categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
+readme = "README.md"
+# `tests/` drives the built binary and reads `bitcoin-tools-vectors`, a
+# path-only dev-dependency that Cargo strips from the published manifest.
+# Shipping the tests without the crate they import gives anyone who vendors
+# this a suite that will not compile, and neither `cargo package` nor its
+# verify step notices — they build bins and examples, never tests. The tests
+# still run in this workspace, which is the only place they are meant to.
+exclude = ["tests/**"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +19,9 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "bitcoin-tools"
+# Short on purpose: this is typed far more often than it is installed, and
+# `cargo install bitcoin-tools` is the only place the long name appears.
+name = "bt"
 path = "src/main.rs"
 
 [dependencies]

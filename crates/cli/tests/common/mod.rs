@@ -15,7 +15,7 @@ use serde_json::Value;
 /// `cargo_bin` resolves the build this test run belongs to, so there is no path
 /// to keep in step and no chance of testing a stale binary.
 pub fn bt() -> Command {
-    Command::cargo_bin("bitcoin-tools").expect("the binary is built for its own tests")
+    Command::cargo_bin("bt").expect("the binary is built for its own tests")
 }
 
 /// Run a command that must succeed, and return its stdout.

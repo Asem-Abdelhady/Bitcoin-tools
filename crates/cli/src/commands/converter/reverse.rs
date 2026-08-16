@@ -38,8 +38,8 @@ const MAX_BYTES: usize = Tx::MAX_SIZE;
 /// positional in a group as readily as a flag, so the shape the next four
 /// groups copy is the same whether or not their arguments look like these.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools converter reverse-bytes <HEX>\n\
-                          \x20      bitcoin-tools converter reverse-bytes --input <FILE>")]
+#[command(override_usage = "bt converter reverse-bytes <HEX>\n\
+                          \x20      bt converter reverse-bytes --input <FILE>")]
 #[command(group = ArgGroup::new("source").args(["hex", "input"]).required(true))]
 pub struct Args {
     /// The bytes to flip, as hex.

@@ -19,9 +19,9 @@ use crate::output::{Context, Fields, Output, yes_no};
 /// public — so all three are ordinary flags. They are given together or replaced
 /// wholesale by `--input`.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools crypto verify --public-key <HEX> \
+#[command(override_usage = "bt crypto verify --public-key <HEX> \
                             --message-hash <HEX> --signature <HEX>\n\
-                          \x20      bitcoin-tools crypto verify --input <FILE>")]
+                          \x20      bt crypto verify --input <FILE>")]
 pub struct Args {
     /// The public key, as 33 or 65 bytes of SEC1 hex.
     #[arg(long, value_name = "HEX", required_unless_present = "input")]

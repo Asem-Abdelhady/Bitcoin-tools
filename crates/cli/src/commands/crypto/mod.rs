@@ -184,8 +184,8 @@ pub enum Command {
     ///
     /// The output is always low-s.
     #[command(after_long_help = "Examples:
-  bitcoin-tools crypto sign --private-key-file key.hex --message-hash 0000...0001
-  bitcoin-tools crypto sign --input request.json --json")]
+  bt crypto sign --private-key-file key.hex --message-hash 0000...0001
+  bt crypto sign --input request.json --json")]
     Sign(sign::Args),
 
     /// Check a signature against a message hash and a public key.
@@ -194,9 +194,9 @@ pub enum Command {
     /// `valid  no`, because that is the question the command exists to answer.
     /// Only bytes that are not a signature at all are a failure.
     #[command(after_long_help = "Examples:
-  bitcoin-tools crypto verify --public-key 0279be66... --message-hash 0000...0001 \\
+  bt crypto verify --public-key 0279be66... --message-hash 0000...0001 \\
       --signature 3044...
-  bitcoin-tools crypto verify --input request.json --json")]
+  bt crypto verify --input request.json --json")]
     Verify(verify::Args),
 }
 

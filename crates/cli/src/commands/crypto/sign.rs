@@ -25,11 +25,9 @@ use crate::output::{Context, Fields, Output};
 /// joining an `ArgGroup`, because the rule here is "these together, or that" and
 /// a mutually-exclusive group cannot say that.
 #[derive(Debug, clap::Args)]
-#[command(
-    override_usage = "bitcoin-tools crypto sign --private-key-file <FILE> \
+#[command(override_usage = "bt crypto sign --private-key-file <FILE> \
                             --message-hash <HEX> [--uncompressed]\n\
-                          \x20      bitcoin-tools crypto sign --input <FILE>"
-)]
+                          \x20      bt crypto sign --input <FILE>")]
 pub struct Args {
     /// A file holding the private key as 64 hex digits, or `-` for stdin.
     ///

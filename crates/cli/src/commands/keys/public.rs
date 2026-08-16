@@ -25,11 +25,9 @@ use crate::output::{Context, Fields, Output, yes_no};
 /// how every command in the crate says "exactly one source" — so giving both, or
 /// neither, is a usage error clap reports without a check here.
 #[derive(Debug, clap::Args)]
-#[command(
-    override_usage = "bitcoin-tools keys public --private-key-file <FILE> \
+#[command(override_usage = "bt keys public --private-key-file <FILE> \
                             [--network <NETWORK>] [--uncompressed]\n\
-                          \x20      bitcoin-tools keys public --input <FILE>"
-)]
+                          \x20      bt keys public --input <FILE>")]
 #[command(group = ArgGroup::new("source")
     .args(["private_key_file", "input"])
     .required(true))]

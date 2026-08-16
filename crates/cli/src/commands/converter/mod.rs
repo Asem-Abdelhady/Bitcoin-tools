@@ -57,9 +57,9 @@ pub enum Command {
     // arrive as an argument, so it is the one place that has to say what that
     // costs.
     #[command(after_long_help = "Examples:
-  bitcoin-tools converter base --hex 0xab12
-  bitcoin-tools converter base --decimal 43794
-  echo '{\"value\": \"0xab12\", \"base\": \"hexadecimal\"}' | bitcoin-tools converter base --input -
+  bt converter base --hex 0xab12
+  bt converter base --decimal 43794
+  echo '{\"value\": \"0xab12\", \"base\": \"hexadecimal\"}' | bt converter base --input -
 
 Note:
   This command exists partly so a 256-bit private key can be read in decimal.
@@ -67,7 +67,7 @@ Note:
   and lands in shell history. If it is a key, pipe it in instead:
 
   printf '{\"value\":\"%s\",\"base\":\"hexadecimal\"}' \"$KEY\" |
-      bitcoin-tools converter base --input -")]
+      bt converter base --input -")]
     Base(base::Args),
 
     /// Convert an amount between satoshi, µBTC, mBTC and BTC.
@@ -78,9 +78,9 @@ Note:
     /// A request file names its unit as a value where the flags name it as a
     /// flag; both read the same spellings.
     #[command(after_long_help = "Examples:
-  bitcoin-tools converter unit --bitcoin 1.5
-  bitcoin-tools converter unit --sat 150000000 --json
-  echo '{\"amount\": \"1.5\", \"denomination\": \"bitcoin\"}' | bitcoin-tools converter unit --input -")]
+  bt converter unit --bitcoin 1.5
+  bt converter unit --sat 150000000 --json
+  echo '{\"amount\": \"1.5\", \"denomination\": \"bitcoin\"}' | bt converter unit --input -")]
     Unit(unit::Args),
 
     /// Flip byte order between the wire's and the display's.
@@ -94,8 +94,8 @@ Note:
     /// a direction flag would decorate the request without changing what is
     /// computed.
     #[command(after_long_help = "Examples:
-  bitcoin-tools converter reverse-bytes 0xdeadbeef
-  bitcoin-tools converter reverse-bytes --input request.json --json")]
+  bt converter reverse-bytes 0xdeadbeef
+  bt converter reverse-bytes --input request.json --json")]
     ReverseBytes(reverse::Args),
 }
 

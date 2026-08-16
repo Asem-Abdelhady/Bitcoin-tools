@@ -1,20 +1,20 @@
-# bitcoin-tools-cli
+# bitcoin-tools
 
-A command-line interface over [`bitcoin-tools-core`](../core/README.md).
+A command-line interface over [`bitcoin-tools-core`](https://github.com/Asem-Abdelhady/Bitcoin-tools/blob/master/crates/core/README.md).
 
-A sibling of the [axum server](../server/README.md), not a layer under or over
+A sibling of the [axum server](https://github.com/Asem-Abdelhady/Bitcoin-tools/blob/master/crates/server/README.md), not a layer under or over
 it: both are front ends, the core is shaped by neither, and where they answer
 the same question they answer it the same way.
 
 ```console
-$ bitcoin-tools converter unit --bitcoin 1.5
+$ bt converter unit --bitcoin 1.5
 satoshi         150000000
 microbitcoin    1500000
 millibitcoin    1500
 bitcoin         1.5
 in money range  yes
 
-$ bitcoin-tools keys public --private-key-file key.hex
+$ bt keys public --private-key-file key.hex
 network             mainnet
 compressed          yes
 
@@ -29,16 +29,17 @@ addresses
     checksum        510d1634
   …
 
-$ bitcoin-tools blocks header 01000000…1dac2b7c --json | jq .difficulty
+$ bt blocks header 01000000…1dac2b7c --json | jq .difficulty
 1.0
 ```
 
 ```console
-$ cargo run -p bitcoin-tools-cli -- converter base --decimal 255
-$ cargo install --path crates/cli        # installs the `bitcoin-tools` binary
+$ cargo install bitcoin-tools            # the crate is bitcoin-tools; the binary is bt
+$ cargo install --path crates/cli        # …or from a checkout
+$ cargo run -p bitcoin-tools -- converter base --decimal 255
 ```
 
-`publish = false`. Requires Rust 1.87.
+**The crate is `bitcoin-tools`; the binary it installs is `bt`.** Requires Rust 1.87.
 
 ## Commands
 
@@ -56,21 +57,21 @@ new one every time, so it is not a key anyone holds.
 ### `converter` — representation
 
 ```console
-$ bitcoin-tools converter base --hex 0xab12
+$ bt converter base --hex 0xab12
 binary       1010101100010010
 decimal      43794
 hexadecimal  ab12
 bits         16
 bytes        2
 
-$ bitcoin-tools converter unit --bitcoin 1.5
+$ bt converter unit --bitcoin 1.5
 satoshi         150000000
 microbitcoin    1500000
 millibitcoin    1500
 bitcoin         1.5
 in money range  yes
 
-$ bitcoin-tools converter reverse-bytes 0xdeadbeef
+$ bt converter reverse-bytes 0xdeadbeef
 input     deadbeef
 reversed  efbeadde
 bytes     4
@@ -84,7 +85,7 @@ directions, because reversal is an involution.
 ### `keys` — private keys, public keys, addresses
 
 ```console
-$ bitcoin-tools keys generate --network testnet
+$ bt keys generate --network testnet
 network     testnet
 compressed  yes
 
@@ -93,7 +94,7 @@ hex         d4660f07421e139f8e1f88eb1965c05ed49d4b69c0952437d3bcaa1be3c48aa9
 decimal     96070646022137682132945058910275331120979634050011197683278170290075103169193
 binary      1101010001100110000011110000011101000010000111100001001110011111…
 
-$ bitcoin-tools keys public --private-key-file key.hex
+$ bt keys public --private-key-file key.hex
 network             mainnet
 compressed          yes
 
@@ -134,7 +135,7 @@ one is a prefix, a witness version, a program and a checksum.
 ### `hd` — BIP39 sentences and BIP32 derivation
 
 ```console
-$ bitcoin-tools hd mnemonic --words 12
+$ bt hd mnemonic --words 12
 network              mainnet
 passphraseUsed       no
 
@@ -157,7 +158,7 @@ masterKey
   xprv               xprv9s21ZrQH143K2wfKxDjtdrC9yfxAcMnr3ZKHX1Zm6YqJpzicpVtyBrRq…
   xpub               xpub661MyMwAqRbcFReo4FGu13yta7ng1pWhQnEtKPyNexNHhnck…
 
-$ bitcoin-tools hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 2
+$ bt hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 2
 network              mainnet
 purpose              bip84
 
@@ -197,7 +198,7 @@ second twenty addresses of the same branch.
 ### `transactions` — scripts, raw transactions, building one
 
 ```console
-$ bitcoin-tools transactions script 76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
+$ bt transactions script 76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
 kind            P2PKH
 hex             76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
 sizeBytes       25
@@ -212,7 +213,7 @@ offset  hex  opcode           category    data        description
 23      88   OP_EQUALVERIFY   logic                   OP_EQUAL then OP_VERIFY
 24      ac   OP_CHECKSIG      crypto                  Verify a signature against a public key
 
-$ bitcoin-tools transactions splitter --input tx.json
+$ bt transactions splitter --input tx.json
 txid                  6d574d5c96bac5cbc1204adb43cb1de7485c9c3e8b80be3fa7580225d7afa9a5
 wtxid                 f6b19a3dfb44291b6bf698f8df0857c2cdf800eece09dff0ed46bb35ea60ac23
 
@@ -228,7 +229,7 @@ inputCount            01
     sequence          ffffffff
   …
 
-$ bitcoin-tools transactions builder --type legacy \
+$ bt transactions builder --type legacy \
       --spend aa52ef52f47e26a3e0bd0e8de4b7c0e3e2d2c1b0a9f8e7d6c5b4a39281706150:0 \
       --pay 100000:76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
 txid    284bd5daab2af3babc2400aa7c8e87905a2144b8850714a3f16628ec28dacac4
@@ -257,11 +258,11 @@ comes from `--input`.
 ### `blocks` — headers
 
 ```console
-$ bitcoin-tools blocks hash 01000000…1dac2b7c
+$ bt blocks hash 01000000…1dac2b7c
 blockHash  000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
 wireOrder  6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000
 
-$ bitcoin-tools blocks header 01000000…1dac2b7c
+$ bt blocks header 01000000…1dac2b7c
 blockHash    000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
 version      1 (00000001)
 prevBlock    0000000000000000000000000000000000000000000000000000000000000000
@@ -281,7 +282,7 @@ its `bits` expand to, rather than asking you to trust either.
 ### `crypto` — ECDSA
 
 ```console
-$ bitcoin-tools crypto sign --private-key-file key.hex --message-hash abab…abab
+$ bt crypto sign --private-key-file key.hex --message-hash abab…abab
 publicKey    0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
 messageHash  abababababababababababababababababababababababababababababababab
 
@@ -292,7 +293,7 @@ signature
   s          4b8b089c65f5f24b8ca8d3a987c2392a4ea7b379c457f85d7b91cab609d39c44
   lowS       yes
 
-$ bitcoin-tools crypto verify --public-key 0279be66… --message-hash abab…abab \
+$ bt crypto verify --public-key 0279be66… --message-hash abab…abab \
       --signature 3045022100a01fd934…
 valid      yes
 encoding   der
@@ -354,10 +355,10 @@ are visible in `ps` to every user on the machine and land verbatim in shell
 history, and neither is something you can take back. So the flag names a file:
 
 ```console
-$ bitcoin-tools keys public --private-key-file key.hex
-$ printf %s "$KEY" | bitcoin-tools keys public --private-key-file -
-$ bitcoin-tools hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 5
-$ bitcoin-tools hd mnemonic --passphrase-file secret.txt
+$ bt keys public --private-key-file key.hex
+$ printf %s "$KEY" | bt keys public --private-key-file -
+$ bt hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 5
+$ bt hd mnemonic --passphrase-file secret.txt
 ```
 
 `-` is stdin, which is the scripting form and keeps the secret off disk
@@ -439,8 +440,8 @@ Every command takes its request either as arguments or from a JSON file with
 `--input <FILE>`, where `-` means stdin.
 
 ```console
-$ echo '{"amount": "1", "denomination": "BTC"}' | bitcoin-tools converter unit --input -
-$ bitcoin-tools transactions builder --input tx.json --json
+$ echo '{"amount": "1", "denomination": "BTC"}' | bt converter unit --input -
+$ bt transactions builder --input tx.json --json
 ```
 
 The request shapes **are the HTTP API's request bodies**, field for field — so a
@@ -499,7 +500,7 @@ satoshis as a whole number for the same reason.
 | 1 | It could not: bad input, an unreadable file, an unwritable stdout. |
 | 2 | The arguments were wrong. clap owns this one and writes its own message. |
 
-A **closed pipe is not a failure**. `bitcoin-tools … \| head` exits 0 and says
+A **closed pipe is not a failure**. `bt … \| head` exits 0 and says
 nothing, in both output modes and in every group.
 
 Two answers that look like failures and are not:
@@ -568,7 +569,10 @@ This crate declares core with `default-features = false` and turns on two:
 
 ## Tests
 
-`cargo test -p bitcoin-tools-cli`. The integration suites drive the **binary**
+`cargo test -p bitcoin-tools`, **in a checkout of the repository** — the suites
+are excluded from the published package, because they read
+`bitcoin-tools-vectors`, a path-only dev-dependency Cargo strips from a
+published manifest. The integration suites drive the **binary**
 through `assert_cmd`, because a CLI's contract is its argument surface, its two
 output modes, its streams and its exit codes — none of which are exercised by
 calling `run` directly.
@@ -591,4 +595,4 @@ Reviewed by the `rust-cli-reviewer` agent, which is forbidden from reviewing
 
 ## License
 
-MIT. See [LICENSE-MIT](../../LICENSE-MIT).
+MIT. See [LICENSE-MIT](LICENSE-MIT).

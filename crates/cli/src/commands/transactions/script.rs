@@ -22,8 +22,8 @@ const SUBJECT: &str = "script";
 ///
 /// One positional value, because a script has no notation to name — hex in.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools transactions script <HEX>\n\
-                          \x20      bitcoin-tools transactions script --input <FILE>")]
+#[command(override_usage = "bt transactions script <HEX>\n\
+                          \x20      bt transactions script --input <FILE>")]
 #[command(group = ArgGroup::new("source")
     .args(["script", "input"])
     .required(true))]

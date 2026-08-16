@@ -32,8 +32,8 @@ use crate::output::{Context, Fields, Output};
 /// module containing a check.
 #[derive(Debug, clap::Args)]
 #[command(
-    override_usage = "bitcoin-tools converter base --binary|--decimal|--hexadecimal <VALUE>\n\
-                          \x20      bitcoin-tools converter base --input <FILE>"
+    override_usage = "bt converter base --binary|--decimal|--hexadecimal <VALUE>\n\
+                          \x20      bt converter base --input <FILE>"
 )]
 #[command(group = ArgGroup::new("source")
     .args(["binary", "decimal", "hexadecimal", "input"])

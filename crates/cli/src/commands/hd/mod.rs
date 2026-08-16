@@ -136,9 +136,9 @@ pub enum Command {
     /// A passphrase is read from a file, or from stdin with `-`, and never from
     /// an argument.
     #[command(after_long_help = "Examples:
-  bitcoin-tools hd mnemonic
-  bitcoin-tools hd mnemonic --words 24 --network testnet
-  bitcoin-tools hd mnemonic --passphrase-file secret.txt --json > wallet.json")]
+  bt hd mnemonic
+  bt hd mnemonic --words 24 --network testnet
+  bt hd mnemonic --passphrase-file secret.txt --json > wallet.json")]
     Mnemonic(mnemonic::Args),
 
     /// Derive a branch and its children from a seed.
@@ -151,9 +151,9 @@ pub enum Command {
     /// The seed is read from a file, or from stdin with `-`, and never from an
     /// argument.
     #[command(after_long_help = "Examples:
-  bitcoin-tools hd derive --seed-file seed.hex --path \"m/84h/0h/0h/0\" --count 5
-  bitcoin-tools hd derive --seed-file - --path m/0 --json
-  bitcoin-tools hd derive --input request.json")]
+  bt hd derive --seed-file seed.hex --path \"m/84h/0h/0h/0\" --count 5
+  bt hd derive --seed-file - --path m/0 --json
+  bt hd derive --input request.json")]
     Derive(derive::Args),
 }
 

@@ -20,8 +20,8 @@ const SUBJECT: &str = "transaction";
 
 /// What `transactions splitter` accepts.
 #[derive(Debug, clap::Args)]
-#[command(override_usage = "bitcoin-tools transactions splitter <HEX>\n\
-                          \x20      bitcoin-tools transactions splitter --input <FILE>")]
+#[command(override_usage = "bt transactions splitter <HEX>\n\
+                          \x20      bt transactions splitter --input <FILE>")]
 #[command(group = ArgGroup::new("source").args(["tx", "input"]).required(true))]
 pub struct Args {
     /// The raw transaction, as hex.

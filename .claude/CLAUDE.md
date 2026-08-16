@@ -9,7 +9,7 @@ axum JSON API and a clap CLI.
 |---|---|---|
 | `bitcoin-tools-core` | `crates/core/` | The domain library. Published. No HTTP, no I/O, no framework. See its [README](crates/core/README.md) — it is the spec. |
 | `bitcoin-tools-server` | `crates/server/` | The axum API. See its [README](crates/server/README.md). `publish = false`. |
-| `bitcoin-tools-cli` | `crates/cli/` | The clap CLI: formatted terminal output, `--json` for machines, input from arguments or JSON files. Its notation flags carry their value — `converter base --hex ab12` — so a value cannot arrive without saying what it is written in. See its [README](crates/cli/README.md). `publish = false`. |
+| `bitcoin-tools` | `crates/cli/` | The clap CLI. **Published**, and the binary it installs is `bt`, not the crate name — so `-p bitcoin-tools` in cargo commands and `bt` everywhere a command is written down. Formatted terminal output, `--json` for machines, input from arguments or JSON files. Its notation flags carry their value — `converter base --hex ab12` — so a value cannot arrive without saying what it is written in. See its [README](crates/cli/README.md). |
 | `bitcoin-tools-vectors` | `crates/vectors/` | Known-good test vectors, shared by the other crates' test suites. `publish = false`, dev-dependency only. |
 
 The split is load-bearing: core **cannot** reference either front end, because

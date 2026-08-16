@@ -36,8 +36,8 @@ pub enum Command {
     /// to the problem is printed, with the problem beside it — because showing
     /// where it broke is what the command is for.
     #[command(after_long_help = "Examples:
-  bitcoin-tools transactions script 76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
-  bitcoin-tools transactions script --input script.json --json")]
+  bt transactions script 76a914751e76e8199196d454941c45d1b3a323f1433bd688ac
+  bt transactions script --input script.json --json")]
     Script(script::Args),
 
     /// Split a raw transaction into the bytes each wire field occupies.
@@ -46,8 +46,8 @@ pub enum Command {
     /// appears, so the output reads as the transaction does — plus the txid, and
     /// the wtxid when there is a witness.
     #[command(after_long_help = "Examples:
-  bitcoin-tools transactions splitter 0200000001...
-  bitcoin-tools transactions splitter --input tx.json --json")]
+  bt transactions splitter 0200000001...
+  bt transactions splitter --input tx.json --json")]
     Splitter(splitter::Args),
 
     /// Build a transaction from inputs and outputs.
@@ -59,9 +59,9 @@ pub enum Command {
     /// witness comes from --input, because a nested list has no flag spelling
     /// that beats writing the JSON.
     #[command(after_long_help = "Examples:
-  bitcoin-tools transactions builder --type legacy \\
+  bt transactions builder --type legacy \\
       --spend aa52ef52...:0 --pay 100000:76a914751e76e8...88ac
-  bitcoin-tools transactions builder --input tx.json --json")]
+  bt transactions builder --input tx.json --json")]
     Builder(builder::Args),
 }
 

@@ -61,7 +61,7 @@ fn main() -> ExitCode {
 
 /// Whether this failure is just a reader that stopped listening.
 ///
-/// `bitcoin-tools … | head -1` closes the pipe as soon as it has its line. Rust
+/// `bt … | head -1` closes the pipe as soon as it has its line. Rust
 /// suppresses `SIGPIPE`, so that surfaces here as an ordinary write error
 /// rather than killing the process — and reporting it would make a correct
 /// pipeline print a spurious failure and exit non-zero.

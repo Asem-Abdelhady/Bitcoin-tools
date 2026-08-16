@@ -59,9 +59,9 @@ pub enum Command {
     /// use a key generated here to hold value unless this machine is the one
     /// that will keep it.
     #[command(after_long_help = "Examples:
-  bitcoin-tools keys generate
-  bitcoin-tools keys generate --network testnet --uncompressed
-  bitcoin-tools keys generate --json > key.json")]
+  bt keys generate
+  bt keys generate --network testnet --uncompressed
+  bt keys generate --json > key.json")]
     Generate(generate::Args),
 
     /// Show the public key and every address a private key produces.
@@ -71,9 +71,9 @@ pub enum Command {
     /// The key is read from a file, or from stdin with `-`, and never from an
     /// argument — arguments are visible to every process on the machine.
     #[command(after_long_help = "Examples:
-  bitcoin-tools keys public --private-key-file key.hex
-  printf %s \"$KEY\" | bitcoin-tools keys public --private-key-file -
-  bitcoin-tools keys public --input request.json --json")]
+  bt keys public --private-key-file key.hex
+  printf %s \"$KEY\" | bt keys public --private-key-file -
+  bt keys public --input request.json --json")]
     Public(public::Args),
 }
 

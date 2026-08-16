@@ -206,8 +206,11 @@ fn the_builders_version_flag_is_the_transactions() {
     ]);
     assert_eq!(split["version"], "01000000");
 
+    // The program's own version, printed by the binary's name — which is `bt`,
+    // not the crate's. `cargo install bitcoin-tools` is the only place the long
+    // name appears.
     let program = run_ok(&["--version"]);
-    assert!(program.contains("bitcoin-tools"), "{program}");
+    assert!(program.starts_with("bt "), "{program}");
 }
 
 /// A malformed argument is a usage error before the domain sees it, and the

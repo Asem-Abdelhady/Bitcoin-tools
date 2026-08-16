@@ -62,8 +62,8 @@ pub enum Command {
     /// are actually in. A block hash is a double SHA-256 of the header, read
     /// backwards for display — which is why it appears to start with zeros.
     #[command(after_long_help = "Examples:
-  bitcoin-tools blocks hash 0100000000000000...1dac2b7c
-  bitcoin-tools blocks hash --input header.json --json")]
+  bt blocks hash 0100000000000000...1dac2b7c
+  bt blocks hash --input header.json --json")]
     Hash(hash::Args),
 
     /// Split a block header into its fields.
@@ -72,8 +72,8 @@ pub enum Command {
     /// target those bits expand to, the difficulty they imply, and whether this
     /// header's own hash actually meets it.
     #[command(after_long_help = "Examples:
-  bitcoin-tools blocks header 0100000000000000...1dac2b7c
-  bitcoin-tools blocks header --input header.json --json")]
+  bt blocks header 0100000000000000...1dac2b7c
+  bt blocks header --input header.json --json")]
     Header(header::Args),
 }
 
@@ -104,12 +104,12 @@ macro_rules! header_args {
         /// which is how every command in the crate says "exactly one source".
         #[derive(Debug, clap::Args)]
         #[command(override_usage = concat!(
-                                    "bitcoin-tools blocks ", $command, " <HEX>\n",
-                                    "\x20      bitcoin-tools blocks ", $command, " --input <FILE>"
-                                ))]
+                                            "bt blocks ", $command, " <HEX>\n",
+                                            "\x20      bt blocks ", $command, " --input <FILE>"
+                                        ))]
         #[command(group = clap::ArgGroup::new("source")
-                                    .args(["header", "input"])
-                                    .required(true))]
+                                            .args(["header", "input"])
+                                            .required(true))]
         pub struct Args {
             /// The eighty bytes of the header, as hex.
             ///

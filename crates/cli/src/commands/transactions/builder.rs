@@ -48,9 +48,9 @@ use crate::output::{Context, Fields, Output};
 // place where the domain already owns the word.
 #[derive(Debug, clap::Args)]
 #[command(disable_version_flag = true)]
-#[command(override_usage = "bitcoin-tools transactions builder --type <KIND> \
+#[command(override_usage = "bt transactions builder --type <KIND> \
                             --spend <TXID:VOUT> --pay <SATS:SCRIPT>\n\
-                          \x20      bitcoin-tools transactions builder --input <FILE>")]
+                          \x20      bt transactions builder --input <FILE>")]
 pub struct Args {
     /// Which serialization: `legacy` or `segwit`.
     ///
@@ -74,7 +74,7 @@ pub struct Args {
     /// The transaction version. Defaults to 2.
     ///
     /// This command's `--version` is the transaction's, not the program's:
-    /// `bitcoin-tools --version` still prints the program's.
+    /// `bt --version` still prints the program's.
     #[arg(long, value_name = "N")]
     version: Option<u32>,
 

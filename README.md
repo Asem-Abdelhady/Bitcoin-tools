@@ -26,8 +26,9 @@ $ curl -s localhost:3000/transactions/script -H 'content-type: application/json'
 Requires Rust 1.87 or newer (edition 2024; `u64::is_multiple_of` sets the floor).
 
 ```console
+$ cargo install bitcoin-tools           # the `bt` command
 $ cargo run -p bitcoin-tools-server     # the API, on 0.0.0.0:3000
-$ cargo run -p bitcoin-tools-cli -- converter unit --bitcoin 1.5
+$ cargo run -p bitcoin-tools -- converter unit --bitcoin 1.5
 $ cargo test --workspace                # ~680 tests, mostly published vectors
 ```
 
@@ -63,7 +64,7 @@ terminal.
 |---|---|---|
 | `bitcoin-tools-core` | [crates/core/](crates/core/) | The domain library, as a standalone publishable cargo package. No HTTP, no I/O, no framework. Its [README](crates/core/README.md) is the spec — feature status, layering, and the reasoning behind both. |
 | `bitcoin-tools-server` | [crates/server/](crates/server/) | The axum JSON API. See its [README](crates/server/README.md). Not published. |
-| `bitcoin-tools-cli` | [crates/cli/](crates/cli/) | The clap command-line tool: formatted output, `--json` for machines, input from arguments or JSON files. See its [README](crates/cli/README.md). Not published. |
+| `bitcoin-tools` | [crates/cli/](crates/cli/) | The clap command-line tool, installed as `bt`: formatted output, `--json` for machines, input from arguments or JSON files. Published. See its [README](crates/cli/README.md). |
 | `bitcoin-tools-vectors` | [crates/vectors/](crates/vectors/) | Known-good test vectors, shared by the other crates' test suites — including the `tools` answers both front ends must agree on. Dev-dependency only. |
 
 The split is load-bearing rather than cosmetic: core **cannot** reference either
@@ -127,7 +128,7 @@ answers do not differ:
 ```console
 $ curl -s localhost:3000/tools/units -H 'content-type: application/json' \
       -d '{"amount":"1.5","denomination":"bitcoin"}' | jq -S .
-$ bitcoin-tools converter unit --bitcoin 1.5 --json | jq -S .
+$ bt converter unit --bitcoin 1.5 --json | jq -S .
 ```
 
 Same object, both times. `crates/vectors/data/tools.json` holds the argv, the
@@ -147,10 +148,10 @@ request body and the one response both must produce.
   whose `Serialize` is the JSON contract and whose `render` is the terminal one.
 
 ```console
-$ bitcoin-tools blocks header 01000000…1dac2b7c
-$ bitcoin-tools keys public --private-key-file key.hex
-$ bitcoin-tools hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 5
-$ bitcoin-tools transactions splitter --input tx.json --json | jq .txid
+$ bt blocks header 01000000…1dac2b7c
+$ bt keys public --private-key-file key.hex
+$ bt hd derive --seed-file seed.hex --path m/84h/0h/0h/0 --count 5
+$ bt transactions splitter --input tx.json --json | jq .txid
 ```
 
 Every command also reads its whole request from `--input <FILE>` in the API's

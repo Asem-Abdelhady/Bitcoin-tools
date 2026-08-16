@@ -212,8 +212,8 @@ where
 /// what holds the secret:
 ///
 /// ```console
-/// $ bitcoin-tools keys public --private-key-file key.hex
-/// $ printf %s "$KEY" | bitcoin-tools keys public --private-key-file -
+/// $ bt keys public --private-key-file key.hex
+/// $ printf %s "$KEY" | bt keys public --private-key-file -
 /// ```
 ///
 /// The second form is the scripting one, and it is why `-` is spelled the way
