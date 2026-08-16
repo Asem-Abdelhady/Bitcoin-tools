@@ -1,4 +1,5 @@
-# The gate every push and pull request goes through.
+# The gate every pull request goes through, and what `master` requires before
+# a pull request can merge.
 #
 # These are the same commands the project's own review loop runs before any
 # change is called done, in the same order, so a green run here means what a
@@ -11,12 +12,11 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A second push to the same branch makes the first one's answer irrelevant.
-# Superseded runs are cancelled -- except on master, where every commit's result
-# is worth keeping.
+# A new push to a pull request makes the previous run's answer irrelevant, so
+# the superseded run is cancelled rather than left to finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
